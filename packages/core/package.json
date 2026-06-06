@@ -1,0 +1,29 @@
+{
+  "name": "@clicksmith/core",
+  "version": "0.1.0",
+  "description": "Shared schemas, types, locator ranking, and session/bundle logic for ClickSmith. Platform-neutral (zod only).",
+  "license": "MIT",
+  "type": "module",
+  "sideEffects": false,
+  "exports": {
+    ".": {
+      "types": "./dist/index.d.ts",
+      "import": "./dist/index.js"
+    }
+  },
+  "main": "./dist/index.js",
+  "types": "./dist/index.d.ts",
+  "files": ["dist"],
+  "scripts": {
+    "build": "tsup",
+    "dev": "tsup --watch",
+    "test": "vitest run",
+    "test:watch": "vitest",
+    "typecheck": "tsc --noEmit",
+    "lint": "eslint src",
+    "clean": "rimraf dist .turbo"
+  },
+  "dependencies": {
+    "zod": "^3.23.8"
+  }
+}

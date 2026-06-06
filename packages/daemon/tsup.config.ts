@@ -1,0 +1,12 @@
+import { defineConfig } from 'tsup';
+
+export default defineConfig({
+  entry: ['src/index.ts', 'src/cli.ts', 'src/mcp.ts'],
+  format: ['esm'],
+  dts: { entry: 'src/index.ts' },
+  sourcemap: true,
+  clean: true,
+  target: 'node20',
+  platform: 'node',
+  shims: true,
+});

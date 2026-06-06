@@ -1,0 +1,39 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>ClickSmith</title>
+    <style>
+      :root { color-scheme: dark; }
+      body { width: 260px; margin: 0; padding: 14px; font: 13px/1.4 system-ui, sans-serif;
+        background: #1c1c22; color: #e7e7ea; }
+      h1 { font-size: 14px; margin: 0 0 10px; }
+      .row { display: flex; align-items: center; justify-content: space-between; margin: 10px 0; }
+      .dot { width: 9px; height: 9px; border-radius: 50%; display: inline-block; margin-right: 6px; }
+      .on { background: #4ade80; } .off { background: #f87171; }
+      select { background: #15151b; color: #e7e7ea; border: 1px solid #34343c; border-radius: 6px; padding: 4px; }
+      .switch { cursor: pointer; }
+      .hint { font-size: 11px; opacity: .7; margin-top: 8px; }
+    </style>
+  </head>
+  <body>
+    <h1>⚒️ ClickSmith</h1>
+    <div class="row">
+      <label class="switch"><input type="checkbox" id="aiMode" /> AI Mode</label>
+      <span id="status"><span class="dot off"></span>checking…</span>
+    </div>
+    <div class="row">
+      <label for="agent">Agent</label>
+      <select id="agent">
+        <option value="claude">Claude Code</option>
+        <option value="cursor">Cursor</option>
+        <option value="codex">Codex</option>
+        <option value="antigravity">Antigravity</option>
+        <option value="generic">Generic</option>
+      </select>
+    </div>
+    <p class="hint">Alt+Click elements on the page to capture them as #1, #2, … Then describe your change in the tray.</p>
+    <script type="module" src="./main.ts"></script>
+  </body>
+</html>

@@ -1,0 +1,42 @@
+{
+  "name": "@clicksmith/daemon",
+  "version": "0.1.0",
+  "description": "The ClickSmith localhost daemon: Fastify HTTP + WebSocket, MCP stdio server, persistence, git sandbox orchestration, and config-driven agent launching.",
+  "license": "MIT",
+  "type": "module",
+  "exports": {
+    ".": {
+      "types": "./dist/index.d.ts",
+      "import": "./dist/index.js"
+    }
+  },
+  "main": "./dist/index.js",
+  "types": "./dist/index.d.ts",
+  "bin": {
+    "clicksmith": "./dist/cli.js"
+  },
+  "files": ["dist"],
+  "scripts": {
+    "build": "tsup",
+    "dev": "tsup --watch",
+    "start": "node dist/cli.js daemon",
+    "test": "vitest run",
+    "test:watch": "vitest",
+    "typecheck": "tsc --noEmit",
+    "lint": "eslint src",
+    "clean": "rimraf dist .turbo"
+  },
+  "dependencies": {
+    "@clicksmith/agent-config": "workspace:*",
+    "@clicksmith/core": "workspace:*",
+    "@fastify/websocket": "^11.0.1",
+    "@modelcontextprotocol/sdk": "^1.0.4",
+    "execa": "^9.5.1",
+    "fastify": "^5.1.0",
+    "zod": "^3.23.8"
+  },
+  "devDependencies": {
+    "@types/ws": "^8.5.13",
+    "ws": "^8.18.0"
+  }
+}

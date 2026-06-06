@@ -1,0 +1,24 @@
+node_modules/
+dist/
+.turbo/
+coverage/
+*.tsbuildinfo
+
+# ClickSmith runtime state (sessions, runs, screenshots, agent logs)
+.clicksmith/
+
+# Editor / OS
+.DS_Store
+.idea/
+.vscode/*
+!.vscode/extensions.json
+*.log
+
+# Env
+.env
+.env.*
+!.env.example
+
+# WXT extension build output
+apps/extension/.output/
+apps/extension/.wxt/

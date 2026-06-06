@@ -1,0 +1,14 @@
+{
+  "extends": "./tsconfig.base.json",
+  "compilerOptions": {
+    "noEmit": true
+  },
+  "files": [],
+  "references": [
+    { "path": "packages/core" },
+    { "path": "packages/agent-config" },
+    { "path": "packages/daemon" },
+    { "path": "packages/unplugin" },
+    { "path": "packages/create" }
+  ]
+}

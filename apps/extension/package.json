@@ -1,0 +1,27 @@
+{
+  "name": "@clicksmith/extension",
+  "version": "0.1.0",
+  "description": "ClickSmith browser extension (WXT MV3). Alt+Click elements, review marks, submit a prompt, watch the agent, Apply.",
+  "license": "MIT",
+  "private": true,
+  "type": "module",
+  "scripts": {
+    "dev": "wxt",
+    "dev:firefox": "wxt -b firefox",
+    "build": "wxt build",
+    "build:firefox": "wxt build -b firefox",
+    "zip": "wxt zip",
+    "wxt:prepare": "wxt prepare",
+    "test": "vitest run",
+    "typecheck": "tsc --noEmit -p tsconfig.lib.json",
+    "lint": "eslint src",
+    "clean": "rimraf .output .wxt .turbo"
+  },
+  "dependencies": {
+    "@clicksmith/core": "workspace:*"
+  },
+  "devDependencies": {
+    "happy-dom": "^15.7.4",
+    "wxt": "^0.19.13"
+  }
+}

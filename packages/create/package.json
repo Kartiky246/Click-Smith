@@ -1,0 +1,29 @@
+{
+  "name": "create-clicksmith",
+  "version": "0.1.0",
+  "description": "Project installer for ClickSmith: detect your stack, wire stable locators, write agent instructions, merge agents.config.json, and register the MCP server.",
+  "license": "MIT",
+  "type": "module",
+  "exports": {
+    ".": { "types": "./dist/index.d.ts", "import": "./dist/index.js" }
+  },
+  "main": "./dist/index.js",
+  "types": "./dist/index.d.ts",
+  "bin": {
+    "create-clicksmith": "./dist/cli.js"
+  },
+  "files": ["dist"],
+  "scripts": {
+    "build": "tsup",
+    "dev": "tsup --watch",
+    "test": "vitest run",
+    "test:watch": "vitest",
+    "typecheck": "tsc --noEmit",
+    "lint": "eslint src",
+    "clean": "rimraf dist .turbo"
+  },
+  "dependencies": {
+    "@clicksmith/agent-config": "workspace:*",
+    "@clicksmith/core": "workspace:*"
+  }
+}

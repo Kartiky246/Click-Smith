@@ -1,0 +1,42 @@
+{
+  "v": 5,
+  "sessionId": "cs_fixture_0001",
+  "submittedAt": "2026-06-07T10:05:00.000Z",
+  "prompt": "make #1 match #2's style",
+  "app": {
+    "url": "http://localhost:5173/pricing",
+    "route": "/pricing",
+    "page": "Pricing"
+  },
+  "elements": [
+    {
+      "id": 1,
+      "ts": "2026-06-07T10:00:00.000Z",
+      "locator": { "kind": "source", "file": "src/components/Cta.tsx", "line": 42, "column": 6 },
+      "el": {
+        "tag": "button",
+        "text": "Get started",
+        "role": "button",
+        "label": "Get started",
+        "attrs": { "class": "btn btn-secondary" }
+      },
+      "near": { "headings": ["Pricing"] },
+      "conditions": { "viewport": { "w": 1280, "h": 800 }, "theme": "light" }
+    },
+    {
+      "id": 2,
+      "ts": "2026-06-07T10:01:00.000Z",
+      "locator": { "kind": "attr", "attr": "data-testid", "value": "hero-cta", "selector": "[data-testid=\"hero-cta\"]" },
+      "el": {
+        "tag": "button",
+        "text": "Start free trial",
+        "role": "button",
+        "label": "Start free trial",
+        "attrs": { "class": "btn btn-primary btn-lg" }
+      },
+      "near": { "headings": ["Ship faster"] },
+      "conditions": { "viewport": { "w": 1280, "h": 800 }, "theme": "light" }
+    }
+  ],
+  "execution": { "mode": "plan", "isolation": "worktree", "autoApply": false }
+}
