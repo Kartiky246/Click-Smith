@@ -29,13 +29,22 @@ export default defineContentScript({
         if (reasons.length && !window.confirm(`Confirm risky options?\n\n- ${reasons.join('\n- ')}`)) {
           return;
         }
-        const result = (await send({ type: 'submit', sessionId, prompt, execution })) as {
-          runId: string;
-        };
-        overlay.startRun(result.runId);
+        overlay.toast('Submitting request to agent...');
+        try {
+          const result = (await send({ type: 'submit', sessionId, prompt, execution })) as {
+            runId: string;
+          };
+          overlay.startRun(result.runId);
+        } catch (err) {
+          overlay.toast(`Submit failed: ${errorMessage(err)}`);
+        }
       },
       onApply: async (runId) => {
-        await send({ type: 'apply', runId });
+        try {
+          await send({ type: 'apply', runId });
+        } catch (err) {
+          overlay.toast(`Apply failed: ${errorMessage(err)}`);
+        }
       },
     });
 
@@ -72,7 +81,7 @@ export default defineContentScript({
         sessionId = res.sessionId;
         overlay.addMark(res.element, app.route);
       } catch (err) {
-        overlay.toast(`Capture failed: ${err instanceof Error ? err.message : String(err)}`);
+        overlay.toast(`Capture failed: ${errorMessage(err)}`);
       }
     }
 
@@ -92,4 +101,8 @@ async function send(message: ContentToBackground): Promise<unknown> {
   const res = (await browser.runtime.sendMessage(message)) as BackgroundResponse;
   if (!res?.ok) throw new Error(res?.error ?? 'background error');
   return res.result;
+}
+
+function errorMessage(err: unknown): string {
+  return err instanceof Error ? err.message : String(err);
 }

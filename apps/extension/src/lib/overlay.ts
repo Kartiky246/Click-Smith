@@ -1,6 +1,8 @@
 import type { CapturedElement, ExecutionOptions, ServerEvent } from '@clicksmith/core';
 import type { ExtensionState } from '../lib/messages';
 
+type RunEvent = Extract<ServerEvent, { runId: string }>;
+
 export interface OverlayHandlers {
   onRemove: (elementId: number) => void | Promise<void>;
   onSubmit: (prompt: string, execution: Partial<ExecutionOptions>) => void | Promise<void>;
@@ -25,12 +27,16 @@ const STYLE = `
   box-shadow: 0 8px 30px rgba(0,0,0,.4); overflow: hidden; }
 .cs-head { display:flex; align-items:center; justify-content:space-between;
   padding: 10px 12px; background: #232330; font-weight: 600; }
+.cs-head-actions { display:flex; align-items:center; gap:8px; }
 .cs-badge { font-size: 11px; padding: 2px 6px; border-radius: 6px; background:#34343c; }
 .cs-marks { max-height: 180px; overflow:auto; }
 .cs-mark { display:flex; gap:8px; align-items:center; padding:8px 12px; border-top:1px solid #2a2a32; }
 .cs-id { font-weight:700; color:#a6c8ff; }
 .cs-mark .meta { flex:1; overflow:hidden; text-overflow:ellipsis; white-space:nowrap; }
 .cs-x { cursor:pointer; color:#ff9a9a; border:none; background:none; font-size:14px; }
+.cs-close { cursor:pointer; color:#e7e7ea; border:1px solid #3e3e48; background:#1c1c22;
+  border-radius:7px; width:24px; height:24px; line-height:20px; padding:0; }
+.cs-close:hover { background:#30303a; }
 .cs-body { padding: 10px 12px; display:flex; flex-direction:column; gap:8px; }
 textarea { width:100%; box-sizing:border-box; min-height:54px; resize:vertical;
   background:#15151b; color:#e7e7ea; border:1px solid #34343c; border-radius:8px; padding:8px; }
@@ -61,15 +67,26 @@ export function mountOverlay(handlers: OverlayHandlers): Overlay {
   document.documentElement.append(host);
 
   const marks = new Map<number, HTMLElement>();
+  const pendingEvents = new Map<string, RunEvent[]>();
   let currentRunId: string | null = null;
+  let visible = false;
 
   const root = el('div', 'cs-root');
+  root.style.display = 'none';
   const card = el('div', 'cs-card');
   const head = el('div', 'cs-head');
   const title = el('span');
   title.textContent = '⚒️ ClickSmith';
   const statusBadge = el('span', 'cs-badge');
-  head.append(title, statusBadge);
+  const closeBtn = document.createElement('button');
+  closeBtn.className = 'cs-close';
+  closeBtn.type = 'button';
+  closeBtn.textContent = '✕';
+  closeBtn.title = 'Close';
+  closeBtn.setAttribute('aria-label', 'Close ClickSmith');
+  const headActions = el('div', 'cs-head-actions');
+  headActions.append(statusBadge, closeBtn);
+  head.append(title, headActions);
 
   const marksEl = el('div', 'cs-marks');
 
@@ -121,11 +138,62 @@ export function mountOverlay(handlers: OverlayHandlers): Overlay {
   applyBtn.addEventListener('click', () => {
     if (currentRunId) void handlers.onApply(currentRunId);
   });
+  closeBtn.addEventListener('click', hide);
 
   function refreshSubmit(): void {
     submitBtn.disabled = marks.size === 0 || textarea.value.trim().length === 0;
   }
   textarea.addEventListener('input', refreshSubmit);
+
+  function show(): void {
+    visible = true;
+    syncVisibility();
+  }
+
+  function hide(): void {
+    visible = false;
+    syncVisibility();
+  }
+
+  function syncVisibility(): void {
+    root.style.display = visible ? 'block' : 'none';
+  }
+
+  function handleRunEvent(event: RunEvent): void {
+    switch (event.type) {
+      case 'agent-started':
+        statusLine.textContent = `Agent ${event.agentId} started.`;
+        break;
+      case 'agent-log':
+        logEl.textContent += event.chunk;
+        logEl.scrollTop = logEl.scrollHeight;
+        break;
+      case 'plan-ready':
+        if (event.diff) {
+          diffEl.style.display = 'block';
+          diffEl.textContent = event.diff;
+        }
+        applyBtn.disabled = false;
+        statusLine.textContent = 'Plan ready — review and Apply.';
+        break;
+      case 'agent-done':
+        statusLine.textContent = 'Agent finished.';
+        break;
+      case 'agent-error':
+        statusLine.textContent = `Agent error: ${event.message}`;
+        break;
+      case 'apply-started':
+        statusLine.textContent = 'Applying changes...';
+        break;
+      case 'apply-done':
+        statusLine.textContent = `Applied${event.commit ? ` as ${event.commit.slice(0, 8)}` : ''}.`;
+        applyBtn.disabled = true;
+        break;
+      case 'apply-error':
+        statusLine.textContent = `Apply failed: ${event.message}`;
+        break;
+    }
+  }
 
   return {
     addMark(element, route) {
@@ -143,6 +211,7 @@ export function mountOverlay(handlers: OverlayHandlers): Overlay {
       marksEl.append(row);
       marks.set(element.id, row);
       refreshSubmit();
+      show();
     },
     removeMark(elementId) {
       marks.get(elementId)?.remove();
@@ -154,47 +223,31 @@ export function mountOverlay(handlers: OverlayHandlers): Overlay {
       statusBadge.innerHTML = `<span class="cs-dot ${on ? 'on' : 'off'}"></span>${
         state.aiMode ? 'AI Mode' : 'paused'
       }${state.agentId ? ` · ${state.agentId}` : ''}`;
-      root.style.display = state.aiMode || marks.size > 0 ? 'block' : 'none';
     },
     startRun(runId) {
       currentRunId = runId;
+      show();
       runPanel.style.display = 'flex';
       logEl.textContent = '';
       diffEl.style.display = 'none';
       applyBtn.disabled = true;
       statusLine.textContent = `Run ${runId} started…`;
+      const queued = pendingEvents.get(runId) ?? [];
+      pendingEvents.delete(runId);
+      for (const event of queued) handleRunEvent(event);
     },
     onDaemonEvent(event) {
-      if (!('runId' in event) || event.runId !== currentRunId) return;
-      switch (event.type) {
-        case 'agent-log':
-          logEl.textContent += event.chunk;
-          logEl.scrollTop = logEl.scrollHeight;
-          break;
-        case 'plan-ready':
-          if (event.diff) {
-            diffEl.style.display = 'block';
-            diffEl.textContent = event.diff;
-          }
-          applyBtn.disabled = false;
-          statusLine.textContent = 'Plan ready — review and Apply.';
-          break;
-        case 'agent-done':
-          statusLine.textContent = 'Agent finished.';
-          break;
-        case 'agent-error':
-          statusLine.textContent = `Agent error: ${event.message}`;
-          break;
-        case 'apply-done':
-          statusLine.textContent = `Applied${event.commit ? ` as ${event.commit.slice(0, 8)}` : ''}.`;
-          applyBtn.disabled = true;
-          break;
-        case 'apply-error':
-          statusLine.textContent = `Apply failed: ${event.message}`;
-          break;
+      if (!('runId' in event)) return;
+      if (event.runId !== currentRunId) {
+        const queued = pendingEvents.get(event.runId) ?? [];
+        queued.push(event);
+        pendingEvents.set(event.runId, queued);
+        return;
       }
+      handleRunEvent(event);
     },
     toast(message) {
+      show();
       statusLine.textContent = message;
     },
     contains(node) {
