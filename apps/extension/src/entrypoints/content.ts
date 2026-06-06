@@ -1,9 +1,14 @@
 import { defineContentScript } from 'wxt/sandbox';
 import { browser } from 'wxt/browser';
-import { confirmationReasons, type CapturedElement, type ExecutionOptions, type ServerEvent } from '@clicksmith/core';
+import {
+  confirmationReasons,
+  type CapturedElement,
+  type ExecutionOptions,
+  type ServerEvent,
+} from '@clicksmith/core';
 import { captureElement } from '../lib/locator';
 import type { BackgroundResponse, ContentToBackground, ExtensionState } from '../lib/messages';
-import { mountOverlay, type Overlay } from '../lib/overlay';
+import { mountOverlay, type Overlay, type OverlayAnchor } from '../lib/overlay';
 
 export default defineContentScript({
   matches: ['<all_urls>'],
@@ -26,7 +31,10 @@ export default defineContentScript({
       onSubmit: async (prompt, execution) => {
         if (!sessionId) return;
         const reasons = confirmationReasons(execution as ExecutionOptions);
-        if (reasons.length && !window.confirm(`Confirm risky options?\n\n- ${reasons.join('\n- ')}`)) {
+        if (
+          reasons.length &&
+          !window.confirm(`Confirm risky options?\n\n- ${reasons.join('\n- ')}`)
+        ) {
           return;
         }
         overlay.toast('Submitting request to agent...');
@@ -65,6 +73,7 @@ export default defineContentScript({
     );
 
     async function capture(target: Element): Promise<void> {
+      const anchor = anchorFrom(target);
       const element = captureElement(target);
       const app = {
         url: location.href,
@@ -79,21 +88,23 @@ export default defineContentScript({
           ...(sessionId ? { sessionId } : {}),
         })) as { sessionId: string; element: CapturedElement };
         sessionId = res.sessionId;
-        overlay.addMark(res.element, app.route);
+        overlay.addMark(res.element, app.route, anchor);
       } catch (err) {
         overlay.toast(`Capture failed: ${errorMessage(err)}`);
       }
     }
 
     // React to daemon/run events pushed by the background worker.
-    browser.runtime.onMessage.addListener((msg: { type: string; event?: ServerEvent; state?: ExtensionState }) => {
-      if (msg.type === 'state' && msg.state) {
-        state = msg.state;
-        overlay.setState(state);
-      } else if (msg.type === 'daemon-event' && msg.event) {
-        overlay.onDaemonEvent(msg.event);
-      }
-    });
+    browser.runtime.onMessage.addListener(
+      (msg: { type: string; event?: ServerEvent; state?: ExtensionState }) => {
+        if (msg.type === 'state' && msg.state) {
+          state = msg.state;
+          overlay.setState(state);
+        } else if (msg.type === 'daemon-event' && msg.event) {
+          overlay.onDaemonEvent(msg.event);
+        }
+      },
+    );
   },
 });
 
@@ -105,4 +116,14 @@ async function send(message: ContentToBackground): Promise<unknown> {
 
 function errorMessage(err: unknown): string {
   return err instanceof Error ? err.message : String(err);
+}
+
+function anchorFrom(target: Element): OverlayAnchor {
+  const rect = target.getBoundingClientRect();
+  return {
+    x: rect.left,
+    y: rect.top,
+    width: rect.width,
+    height: rect.height,
+  };
 }

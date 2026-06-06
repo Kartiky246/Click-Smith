@@ -3,6 +3,13 @@ import type { ExtensionState } from '../lib/messages';
 
 type RunEvent = Extract<ServerEvent, { runId: string }>;
 
+export interface OverlayAnchor {
+  x: number;
+  y: number;
+  width: number;
+  height: number;
+}
+
 export interface OverlayHandlers {
   onRemove: (elementId: number) => void | Promise<void>;
   onSubmit: (prompt: string, execution: Partial<ExecutionOptions>) => void | Promise<void>;
@@ -10,7 +17,7 @@ export interface OverlayHandlers {
 }
 
 export interface Overlay {
-  addMark(element: CapturedElement, route: string): void;
+  addMark(element: CapturedElement, route: string, anchor?: OverlayAnchor): void;
   removeMark(elementId: number): void;
   setState(state: ExtensionState): void;
   startRun(runId: string): void;
@@ -92,7 +99,8 @@ export function mountOverlay(handlers: OverlayHandlers): Overlay {
 
   const body = el('div', 'cs-body');
   const textarea = document.createElement('textarea');
-  textarea.placeholder = 'Describe the change, referencing #1, #2, … e.g. "make #1 match #2\'s style"';
+  textarea.placeholder =
+    'Describe the change, referencing #1, #2, … e.g. "make #1 match #2\'s style"';
 
   const controls = el('div', 'cs-row');
   const modeSel = dropdown(['plan', 'edit'], 'plan');
@@ -159,6 +167,29 @@ export function mountOverlay(handlers: OverlayHandlers): Overlay {
     root.style.display = visible ? 'block' : 'none';
   }
 
+  function positionNear(anchor: OverlayAnchor): void {
+    const gap = 12;
+    const panelWidth = Math.min(360, Math.max(280, window.innerWidth - gap * 2));
+    const rightSide = anchor.x + anchor.width + gap;
+    const leftSide = anchor.x - panelWidth - gap;
+    const maxLeft = window.innerWidth - panelWidth - gap;
+    const left = rightSide <= maxLeft ? rightSide : Math.max(gap, leftSide);
+    const top = clamp(anchor.y, gap, Math.max(gap, window.innerHeight - 240));
+
+    root.style.width = `${panelWidth}px`;
+    root.style.left = `${left}px`;
+    root.style.top = `${top}px`;
+    root.style.right = 'auto';
+    root.style.bottom = 'auto';
+
+    requestAnimationFrame(() => {
+      const rect = root.getBoundingClientRect();
+      if (rect.bottom > window.innerHeight - gap) {
+        root.style.top = `${Math.max(gap, window.innerHeight - rect.height - gap)}px`;
+      }
+    });
+  }
+
   function handleRunEvent(event: RunEvent): void {
     switch (event.type) {
       case 'agent-started':
@@ -196,7 +227,8 @@ export function mountOverlay(handlers: OverlayHandlers): Overlay {
   }
 
   return {
-    addMark(element, route) {
+    addMark(element, route, anchor) {
+      if (anchor) positionNear(anchor);
       const row = el('div', 'cs-mark');
       const id = el('span', 'cs-id');
       id.textContent = `#${element.id}`;
@@ -287,5 +319,8 @@ export function mountOverlay(handlers: OverlayHandlers): Overlay {
     span.textContent = text;
     wrap.append(input, span);
     return { wrap, input };
+  }
+  function clamp(value: number, min: number, max: number): number {
+    return Math.min(Math.max(value, min), max);
   }
 }
