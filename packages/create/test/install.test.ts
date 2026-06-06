@@ -62,10 +62,13 @@ describe('installer — Vite + React project', () => {
     // stable attrs are surfaced to the agent
     expect(claude).toMatch(/data-testid/);
 
-    // agents.config.json is valid and includes the defaults.
+    // agents.config.json is valid but does not freeze built-in command defaults.
     const config = parseAgentsConfig(JSON.parse(await read('.clicksmith/agents.config.json')));
     expect(config.ok).toBe(true);
-    if (config.ok) expect(config.config.agents.map((a) => a.id)).toContain('claude');
+    if (config.ok) {
+      expect(config.config.defaultAgent).toBe('claude');
+      expect(config.config.agents).toEqual([]);
+    }
 
     // MCP server registered for Claude (.mcp.json) and Cursor (.cursor/mcp.json).
     const mcp = JSON.parse(await read('.mcp.json'));

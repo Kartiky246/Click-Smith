@@ -4,6 +4,7 @@ import type { ExecutionMode, Isolation } from '@clicksmith/core';
 export const PLACEHOLDER_KEYS = [
   'bundlePath',
   'prompt',
+  'agentPrompt',
   'instructionFile',
   'mode',
   'mcpServer',
@@ -21,6 +22,8 @@ export interface AgentLaunchContext {
   bundlePath: string;
   /** The user's free-text prompt. */
   prompt: string;
+  /** Full agent-ready prompt containing the ClickSmith bundle and instruction paths. */
+  agentPrompt: string;
   /** Absolute path to the rendered instruction file for this agent. */
   instructionFile: string;
   /** Execution mode (`plan` | `edit`). */

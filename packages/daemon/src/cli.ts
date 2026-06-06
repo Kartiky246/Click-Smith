@@ -4,12 +4,14 @@ import { DaemonService } from './daemon-service.js';
 import { buildServer } from './server.js';
 import { startMcp } from './mcp.js';
 import { version } from './version.js';
+import { defaultBinExists } from '@clicksmith/agent-config';
 
 const HELP = `clicksmith ${version}
 
 Usage:
   clicksmith daemon [--port <n>] [--host <h>] [--log <level>]
   clicksmith mcp                     Run the read-only MCP stdio server
+  clicksmith doctor                  Check daemon config and agent CLIs
   clicksmith version
   clicksmith help
 
@@ -43,6 +45,45 @@ async function runDaemon(args: string[]): Promise<void> {
   process.on('SIGTERM', shutdown);
 }
 
+async function runDoctor(args: string[]): Promise<void> {
+  const opts = parseFlags(args);
+  const config = await resolveDaemonConfig({
+    ...(opts.port ? { port: Number(opts.port) } : {}),
+    ...(opts.host ? { host: opts.host } : {}),
+    logLevel: 'silent',
+  });
+
+  const lines: string[] = [];
+  lines.push(`clicksmith ${version} doctor`);
+  lines.push(`daemon URL : http://${config.host}:${config.port}`);
+  lines.push(`cwd        : ${config.cwd}`);
+  lines.push(`repo       : ${config.repoRoot ?? '(none)'}`);
+  lines.push(`storage    : ${config.storageRoot}`);
+  lines.push(`PATH       : ${process.env.PATH ?? '(empty)'}`);
+  lines.push('');
+  lines.push('Agents:');
+
+  for (const agent of config.agents.agents) {
+    const bins = agent.detect?.anyOf ?? [agent.command];
+    const checks = await Promise.all(
+      bins.map(async (bin) => ({ bin, ok: await defaultBinExists(bin) })),
+    );
+    const ok = checks.some((check) => check.ok);
+    lines.push(`  ${ok ? '✓' : '✗'} ${agent.id} (${agent.label ?? agent.command})`);
+    lines.push(`      command: ${agent.command}`);
+    lines.push(
+      `      checked: ${checks.map((check) => `${check.bin}${check.ok ? ' ✓' : ' ✗'}`).join(', ')}`,
+    );
+    if (!ok) {
+      lines.push(
+        '      fix: install the CLI on PATH, or edit .clicksmith/agents.config.json with an absolute command/detect path.',
+      );
+    }
+  }
+
+  process.stdout.write(`${lines.join('\n')}\n`);
+}
+
 function parseFlags(args: string[]): Record<string, string> {
   const out: Record<string, string> = {};
   for (let i = 0; i < args.length; i++) {
@@ -68,6 +109,8 @@ async function main(): Promise<void> {
       return runDaemon(rest);
     case 'mcp':
       return startMcp();
+    case 'doctor':
+      return runDoctor(rest);
     case 'version':
     case '--version':
     case '-v':

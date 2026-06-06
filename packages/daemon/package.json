@@ -1,6 +1,6 @@
 {
   "name": "@clicksmith/daemon",
-  "version": "0.1.0",
+  "version": "0.1.1",
   "description": "The ClickSmith localhost daemon: Fastify HTTP + WebSocket, MCP stdio server, persistence, git sandbox orchestration, and config-driven agent launching.",
   "license": "MIT",
   "type": "module",

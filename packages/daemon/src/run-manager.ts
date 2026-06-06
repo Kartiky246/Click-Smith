@@ -52,7 +52,9 @@ export class RunManager {
     const { store, config, bus, logger } = this.deps;
     const agentConfig = resolveAgent(config.agents, input.execution.agentId);
     if (!agentConfig) {
-      throw new RefusalError(`No agent configured (requested: ${input.execution.agentId ?? 'default'}).`);
+      throw new RefusalError(
+        `No agent configured (requested: ${input.execution.agentId ?? 'default'}).`,
+      );
     }
 
     const runId = newRunId();
@@ -70,13 +72,24 @@ export class RunManager {
       baseBranch = await safe(() => git.currentBranch());
       const baseRef = input.execution.baseRef ?? baseCommit;
 
-      if (isolation !== 'inplace' && (await git.isDirty({ exclude: ['.clicksmith/', '.clicksmith'] }))) {
+      if (
+        isolation !== 'inplace' &&
+        (await git.isDirty({ exclude: ['.clicksmith/', '.clicksmith'] }))
+      ) {
         throw new RefusalError(
           `Refusing to run in ${isolation} isolation: the working tree has uncommitted changes. ` +
             `Commit or stash them, or use inplace isolation explicitly.`,
         );
       }
-      sandbox = await this.prepareSandbox(git, runId, isolation, baseRef, repoRoot, baseCommit, logger);
+      sandbox = await this.prepareSandbox(
+        git,
+        runId,
+        isolation,
+        baseRef,
+        repoRoot,
+        baseCommit,
+        logger,
+      );
     }
 
     const enriched = await enrichBundle(input, this.deps.enrichment);
@@ -100,7 +113,13 @@ export class RunManager {
     };
     await store.saveRun(run);
 
-    bus.emit({ type: 'agent-started', runId, sessionId: run.sessionId, agentId: run.agentId, sandbox });
+    bus.emit({
+      type: 'agent-started',
+      runId,
+      sessionId: run.sessionId,
+      agentId: run.agentId,
+      sandbox,
+    });
 
     // Fire-and-forget the actual agent execution.
     void this.execute(run, enriched, agentConfig).catch((err) => {
@@ -137,14 +156,25 @@ export class RunManager {
     return describeSandbox('branch', repoRoot, branch, baseCommit);
   }
 
-  private async execute(run: RunRecord, bundle: CaptureBundle, agentConfig: AgentConfig): Promise<void> {
+  private async execute(
+    run: RunRecord,
+    bundle: CaptureBundle,
+    agentConfig: AgentConfig,
+  ): Promise<void> {
     const { store, config, bus, logger } = this.deps;
     const sandboxPath = run.sandbox?.path ?? config.cwd;
 
     const instructionFile = await this.resolveInstructionFile(run, agentConfig);
+    const agentPrompt = buildAgentPrompt({
+      bundle,
+      bundlePath: store.bundlePath(run.runId),
+      instructionFile,
+      run,
+    });
     const ctx: AgentLaunchContext = {
       bundlePath: store.bundlePath(run.runId),
       prompt: bundle.prompt,
+      agentPrompt,
       instructionFile,
       mode: bundle.execution.mode,
       mcpServer: 'clicksmith',
@@ -156,11 +186,22 @@ export class RunManager {
 
     const adapter = configToAdapter(agentConfig);
     if (!(await adapter.isAvailable(ctx))) {
-      await this.fail(run, `Agent "${agentConfig.id}" is not available on PATH.`);
+      await this.fail(run, unavailableMessage(agentConfig));
       return;
     }
 
-    const spec = adapter.buildCommand(ctx);
+    const rawSpec = adapter.buildCommand(ctx);
+    const spec = {
+      ...rawSpec,
+      env: {
+        CLICKSMITH_BUNDLE_PATH: ctx.bundlePath,
+        CLICKSMITH_INSTRUCTION_FILE: ctx.instructionFile,
+        CLICKSMITH_MODE: ctx.mode,
+        CLICKSMITH_ISOLATION: ctx.isolation,
+        CLICKSMITH_RUN_ID: run.runId,
+        ...(rawSpec.env ?? {}),
+      },
+    };
     logger.info(`run ${run.runId}: ${spec.command} ${spec.args.join(' ')}`);
 
     let result;
@@ -343,4 +384,61 @@ async function safe<T>(fn: () => Promise<T>): Promise<T | null> {
 
 function truncate(s: string, n: number): string {
   return s.length <= n ? s : `${s.slice(0, n - 1)}…`;
+}
+
+function unavailableMessage(agentConfig: AgentConfig): string {
+  const checked = agentConfig.detect?.anyOf ?? [agentConfig.command];
+  return (
+    `Agent "${agentConfig.id}" is not available to the ClickSmith daemon. ` +
+    `Checked: ${checked.join(', ')}. ` +
+    `Install the agent CLI so it is on the daemon PATH, or set command/detect to an absolute path in .clicksmith/agents.config.json.`
+  );
+}
+
+function buildAgentPrompt(input: {
+  bundle: CaptureBundle;
+  bundlePath: string;
+  instructionFile: string;
+  run: RunRecord;
+}): string {
+  const { bundle, bundlePath, instructionFile, run } = input;
+  const modeGuidance =
+    bundle.execution.mode === 'edit'
+      ? 'Edit the files needed to satisfy the request inside the working directory. Do not apply back to the main tree; ClickSmith handles Apply.'
+      : 'Produce a concise plan. You may inspect files, but do not modify them in plan mode.';
+  const elementSummary = bundle.elements
+    .map((element) => {
+      const text = element.el.text || element.el.label || element.el.tag;
+      const locator =
+        element.locator.kind === 'source'
+          ? `${element.locator.file}:${element.locator.line}`
+          : element.locator.kind === 'attr'
+            ? `${element.locator.attr}=${JSON.stringify(element.locator.value)}`
+            : element.locator.kind === 'behavioral'
+              ? `${element.locator.role} ${JSON.stringify(element.locator.name)}`
+              : element.locator.selector;
+      return `#${element.id}: ${element.el.tag} ${JSON.stringify(text)} via ${element.locator.kind} (${locator})`;
+    })
+    .join('\n');
+
+  return [
+    'ClickSmith captured a browser UI change request.',
+    '',
+    `User request: ${bundle.prompt}`,
+    `App URL: ${bundle.app.url}`,
+    `Route: ${bundle.app.route}`,
+    `Execution mode: ${bundle.execution.mode}`,
+    `Isolation: ${run.isolation}`,
+    `Working directory: ${run.sandbox?.path ?? run.repoRoot ?? '(none)'}`,
+    '',
+    'Read these files before deciding what to change:',
+    `- Instructions: ${instructionFile}`,
+    `- Capture bundle JSON: ${bundlePath}`,
+    '',
+    'Captured elements:',
+    elementSummary,
+    '',
+    modeGuidance,
+    'Use the numbered #N element references from the bundle. Prefer source locators first, then stable attributes, behavioral locators, and DOM context.',
+  ].join('\n');
 }

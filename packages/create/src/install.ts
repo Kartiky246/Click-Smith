@@ -3,7 +3,6 @@ import { dirname, join } from 'node:path';
 import {
   applyManagedBlock,
   DEFAULT_AGENTS_CONFIG,
-  mergeAgentsConfig,
   parseAgentsConfig,
   renderInstructions,
   type InstructionTarget,
@@ -39,7 +38,10 @@ const DEFAULT_AGENT_TARGETS: InstructionTarget[] = ['claude', 'cursor', 'codex',
  * reading existing files so merges preserve user content. Nothing is written —
  * call {@link applyPlan} for that. This split keeps the installer fully testable.
  */
-export async function planInstall(info: ProjectInfo, options: InstallOptions = {}): Promise<InstallPlan> {
+export async function planInstall(
+  info: ProjectInfo,
+  options: InstallOptions = {},
+): Promise<InstallPlan> {
   const root = info.root;
   const targets = options.agents ?? DEFAULT_AGENT_TARGETS;
   const useUnplugin = options.useUnplugin ?? info.supportsUnplugin;
@@ -51,7 +53,10 @@ export async function planInstall(info: ProjectInfo, options: InstallOptions = {
 
   // 1. Agent instruction files (managed blocks preserve user content).
   for (const target of targets) {
-    const rendered = renderInstructions(target, { stableAttrs: info.stableAttrs, daemonPort: port });
+    const rendered = renderInstructions(target, {
+      stableAttrs: info.stableAttrs,
+      daemonPort: port,
+    });
     const existing = await readText(join(root, rendered.path));
     const contents = rendered.shared
       ? applyManagedBlock(existing, rendered.content)
@@ -63,23 +68,36 @@ export async function planInstall(info: ProjectInfo, options: InstallOptions = {
     });
   }
 
-  // 2. agents.config.json — merge defaults with any existing project config.
+  // 2. agents.config.json — keep this as user overrides only. The daemon ships
+  // built-in defaults, so copying them into projects would freeze old commands.
   const configPath = join('.clicksmith', 'agents.config.json');
   const existingConfigRaw = await readText(join(root, configPath));
-  let merged = DEFAULT_AGENTS_CONFIG;
-  if (existingConfigRaw) {
+  if (existingConfigRaw == null) {
+    changes.push({
+      path: configPath,
+      action: 'create',
+      contents: `${JSON.stringify(
+        { version: 1, defaultAgent: DEFAULT_AGENTS_CONFIG.defaultAgent, agents: [] },
+        null,
+        2,
+      )}\n`,
+    });
+  } else {
     try {
       const parsed = parseAgentsConfig(JSON.parse(existingConfigRaw));
-      if (parsed.ok) merged = mergeAgentsConfig(DEFAULT_AGENTS_CONFIG, parsed.config);
+      if (!parsed.ok) {
+        messages.push('Existing agents.config.json was invalid; left it untouched.');
+      }
     } catch {
       messages.push('Existing agents.config.json was invalid JSON; left it untouched.');
     }
+    changes.push({
+      path: configPath,
+      action: 'skip',
+      contents: existingConfigRaw,
+      reason: 'existing user agent overrides preserved',
+    });
   }
-  changes.push({
-    path: configPath,
-    action: existingConfigRaw == null ? 'create' : 'merge',
-    contents: `${JSON.stringify(merged, null, 2)}\n`,
-  });
 
   // 3. MCP registration for the daemon's stdio server.
   const mcp = mcpCommand(info.packageManager);
@@ -97,11 +115,15 @@ export async function planInstall(info: ProjectInfo, options: InstallOptions = {
         `Could not automatically wire ${info.viteConfig}. Add: import clicksmith from '@clicksmith/unplugin/vite'; and put clicksmith() first in plugins.`,
       );
   } else if (useUnplugin) {
-    messages.push('No Vite config found — add the @clicksmith/unplugin plugin to your bundler manually.');
+    messages.push(
+      'No Vite config found — add the @clicksmith/unplugin plugin to your bundler manually.',
+    );
   } else {
     messages.push(
       `Stable source locators via unplugin aren't available for this stack; ClickSmith will use ${
-        info.stableAttrs.length ? `your attributes (${info.stableAttrs.join(', ')})` : 'attribute/behavioral/DOM'
+        info.stableAttrs.length
+          ? `your attributes (${info.stableAttrs.join(', ')})`
+          : 'attribute/behavioral/DOM'
       } as the fallback locator (source → attr → behavioral → dom).`,
     );
   }
@@ -115,7 +137,8 @@ export async function planInstall(info: ProjectInfo, options: InstallOptions = {
   nextSteps.push(
     `${installCmd(info.packageManager)}   # install the new dependencies`,
     `${runCmd(info.packageManager, 'clicksmith daemon')}   # start the localhost daemon`,
-    'Load the ClickSmith extension, toggle AI Mode, and Alt+Click an element.',
+    `${runCmd(info.packageManager, 'clicksmith doctor')}   # verify agent CLIs are visible to the daemon`,
+    'Install the ClickSmith browser extension, toggle AI Mode, and Alt+Click an element.',
   );
 
   return { changes, messages, nextSteps };
@@ -194,7 +217,8 @@ async function packageJsonChange(root: string, useUnplugin: boolean): Promise<Fi
   pkg.devDependencies = { ...(pkg.devDependencies ?? {}) };
   pkg.devDependencies['@clicksmith/daemon'] = pkg.devDependencies['@clicksmith/daemon'] ?? 'latest';
   if (useUnplugin) {
-    pkg.devDependencies['@clicksmith/unplugin'] = pkg.devDependencies['@clicksmith/unplugin'] ?? 'latest';
+    pkg.devDependencies['@clicksmith/unplugin'] =
+      pkg.devDependencies['@clicksmith/unplugin'] ?? 'latest';
   }
   return {
     path: 'package.json',
@@ -205,7 +229,9 @@ async function packageJsonChange(root: string, useUnplugin: boolean): Promise<Fi
 
 async function gitignoreChange(root: string): Promise<FileChange> {
   const existing = await readText(join(root, '.gitignore'));
-  if (existing?.split(/\r?\n/).some((l) => l.trim() === '.clicksmith/' || l.trim() === '.clicksmith')) {
+  if (
+    existing?.split(/\r?\n/).some((l) => l.trim() === '.clicksmith/' || l.trim() === '.clicksmith')
+  ) {
     return { path: '.gitignore', action: 'skip', contents: existing };
   }
   const contents = existing

@@ -1,4 +1,9 @@
-import { PLACEHOLDER_KEYS, type AgentLaunchContext, type CommandSpec, type PlaceholderKey } from './types.js';
+import {
+  PLACEHOLDER_KEYS,
+  type AgentLaunchContext,
+  type CommandSpec,
+  type PlaceholderKey,
+} from './types.js';
 import type { AgentConfig } from './config-schema.js';
 
 /** Build the placeholder → value map from a launch context. */
@@ -6,6 +11,7 @@ export function placeholderValues(ctx: AgentLaunchContext): Record<PlaceholderKe
   return {
     bundlePath: ctx.bundlePath,
     prompt: ctx.prompt,
+    agentPrompt: ctx.agentPrompt,
     instructionFile: ctx.instructionFile,
     mode: ctx.mode,
     mcpServer: ctx.mcpServer,

@@ -6,6 +6,7 @@ import type { AgentConfig } from './config-schema.js';
 const ctx: AgentLaunchContext = {
   bundlePath: '/repo/.clicksmith/runs/run_1/bundle.json',
   prompt: 'make #1 match #2',
+  agentPrompt: 'ClickSmith request\nmake #1 match #2',
   instructionFile: '/repo/CLAUDE.md',
   mode: 'plan',
   mcpServer: 'clicksmith',
@@ -16,9 +17,12 @@ const ctx: AgentLaunchContext = {
 
 describe('placeholder resolution', () => {
   it('replaces every known placeholder', () => {
-    const out = resolvePlaceholders('{prompt} :: {bundlePath} :: {mode} :: {cwd} :: {mcpServer}', ctx);
+    const out = resolvePlaceholders(
+      '{prompt} :: {agentPrompt} :: {bundlePath} :: {mode} :: {cwd} :: {mcpServer}',
+      ctx,
+    );
     expect(out).toBe(
-      'make #1 match #2 :: /repo/.clicksmith/runs/run_1/bundle.json :: plan :: /repo/.clicksmith/worktrees/run_1 :: clicksmith',
+      'make #1 match #2 :: ClickSmith request\nmake #1 match #2 :: /repo/.clicksmith/runs/run_1/bundle.json :: plan :: /repo/.clicksmith/worktrees/run_1 :: clicksmith',
     );
   });
 
@@ -27,7 +31,8 @@ describe('placeholder resolution', () => {
   });
 
   it('reports referenced placeholders', () => {
-    expect(referencedPlaceholders('{prompt} {bundlePath} {nope}').sort()).toEqual([
+    expect(referencedPlaceholders('{prompt} {agentPrompt} {bundlePath} {nope}').sort()).toEqual([
+      'agentPrompt',
       'bundlePath',
       'prompt',
     ]);
@@ -37,12 +42,17 @@ describe('placeholder resolution', () => {
     const config: AgentConfig = {
       id: 'x',
       command: 'claude',
-      args: ['-p', '{prompt}', '--file', '{instructionFile}'],
+      args: ['-p', '{agentPrompt}', '--file', '{instructionFile}'],
       env: { CS_BUNDLE: '{bundlePath}' },
     };
     const spec = resolveCommand(config, ctx);
     expect(spec.command).toBe('claude');
-    expect(spec.args).toEqual(['-p', 'make #1 match #2', '--file', '/repo/CLAUDE.md']);
+    expect(spec.args).toEqual([
+      '-p',
+      'ClickSmith request\nmake #1 match #2',
+      '--file',
+      '/repo/CLAUDE.md',
+    ]);
     expect(spec.env).toEqual({ CS_BUNDLE: '/repo/.clicksmith/runs/run_1/bundle.json' });
     expect(spec.cwd).toBe(ctx.cwd);
   });

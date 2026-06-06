@@ -8,6 +8,7 @@ import type { AgentLaunchContext } from './types.js';
 const ctx: AgentLaunchContext = {
   bundlePath: '/b.json',
   prompt: 'do it',
+  agentPrompt: 'ClickSmith request\ndo it',
   instructionFile: '/CLAUDE.md',
   mode: 'plan',
   mcpServer: 'clicksmith',
@@ -33,7 +34,7 @@ describe('configToAdapter', () => {
   it('builds a concrete command from the template', () => {
     const spec = configToAdapter(claude).buildCommand(ctx);
     expect(spec.command).toBe('claude');
-    expect(spec.args).toContain('do it');
+    expect(spec.args).toContain('ClickSmith request\ndo it');
     expect(spec.args).toContain('@/CLAUDE.md');
   });
 

@@ -17,10 +17,14 @@ export interface LaunchResult {
  * the caller as they arrive. Never rejects on non-zero exit — the run manager
  * decides what a non-zero code means.
  */
-export async function launchAgent(spec: CommandSpec, handlers: LaunchHandlers): Promise<LaunchResult> {
+export async function launchAgent(
+  spec: CommandSpec,
+  handlers: LaunchHandlers,
+): Promise<LaunchResult> {
   const subprocess = execa(spec.command, spec.args, {
     cwd: spec.cwd,
     env: { ...process.env, ...spec.env },
+    stdin: 'ignore',
     reject: false,
     all: false,
     cancelSignal: handlers.signal,
