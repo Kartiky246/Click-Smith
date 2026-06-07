@@ -220,12 +220,35 @@
     .mock-h.sm { height: 9px; background: var(--border); }
     .mock-h.sm.w90 { width: 90%; } .mock-h.sm.w70 { width: 70%; }
     .mock-buttons { display: flex; gap: 10px; margin-top: 14px; }
-    .mock-btn-hi {
+    /* ── Typewriter cursor ── */
+    .tw-cursor { color: var(--accent); margin-left: 1px; font-weight: 400; }
+    @keyframes tw-blink { 0%,100%{ opacity:1 } 50%{ opacity:0 } }
+    .tw-cursor.blinking { animation: tw-blink .7s step-end infinite; }
+
+    /* ── Hero scenes ── */
+    .hero-scene { display: none; }
+    .hero-scene.active { display: block; }
+
+    /* ── Scene 0: CTA button ── */
+    .hero-cta {
       padding: 7px 16px; border-radius: 5px;
       background: var(--accent); font-size: 11px; font-weight: 600; color: #fff;
-      position: relative; cursor: pointer;
+      position: relative; cursor: pointer; display: inline-block;
       box-shadow: 0 0 0 2.5px rgba(79,110,247,.5), 0 0 18px rgba(79,110,247,.3);
       animation: hpulse 2.5s ease-in-out infinite;
+      transition: background .5s ease, box-shadow .5s ease;
+    }
+    .hero-cta.applied {
+      background: #16a34a; /* green */
+      box-shadow: 0 0 0 1.5px rgba(22,163,74,.45), 0 0 14px rgba(22,163,74,.25);
+      animation: none;
+    }
+    .hero-cta.applied .hi-label { opacity: 0; pointer-events: none; }
+    .hero-cta.applied .hi-applied { display: block; }
+    .hi-applied {
+      display: none; position: absolute; top: -22px; left: 50%; transform: translateX(-50%);
+      background: #16a34a; color: #fff; font-size: 9px; font-weight: 700;
+      padding: 2px 7px; border-radius: 999px; white-space: nowrap; font-family: var(--mono);
     }
     @keyframes hpulse {
       0%,100% { box-shadow: 0 0 0 2.5px rgba(79,110,247,.5), 0 0 18px rgba(79,110,247,.25); }
@@ -240,8 +263,59 @@
       background: var(--accent); color: #fff; font-size: 9px; font-weight: 700;
       padding: 2px 7px; border-radius: 999px; white-space: nowrap; font-family: var(--mono);
     }
+
+    /* ── Scene 1: Chart panel ── */
+    .hero-chart-wrap {
+      border: 1px solid var(--border); border-radius: 8px; overflow: hidden;
+      position: relative;
+    }
+    .hero-chart-wrap.capture {
+      box-shadow: 0 0 0 2px rgba(79,110,247,.4), 0 0 16px rgba(79,110,247,.2);
+      animation: hpulse 2.5s ease-in-out infinite;
+    }
+    .hcw-top {
+      background: #111; padding: 10px 12px 0;
+      display: flex; align-items: center; justify-content: space-between;
+    }
+    .hcw-title { font-size: 10px; font-weight: 700; color: var(--text-3); letter-spacing: .05em; }
+    .hcw-altclick {
+      display: none; background: var(--accent); color: #fff; font-size: 9px; font-weight: 700;
+      padding: 2px 8px; border-radius: 999px; font-family: var(--mono);
+    }
+    .hero-chart-wrap.capture .hcw-altclick { display: inline-flex; }
+    .hcw-daterange {
+      display: flex; align-items: center; gap: 5px; padding: 7px 12px;
+      background: rgba(79,110,247,.06); border-bottom: 1px solid rgba(79,110,247,.15);
+      opacity: 0; max-height: 0; overflow: hidden;
+      transition: opacity .45s ease, max-height .45s ease, padding .45s ease;
+    }
+    .hcw-daterange.visible {
+      opacity: 1; max-height: 40px; padding: 7px 12px;
+    }
+    .hcw-dr-label { font-size: 9px; font-weight: 700; color: var(--accent-l); text-transform: uppercase; letter-spacing: .07em; }
+    .hcw-dr-pill {
+      padding: 2px 8px; background: rgba(79,110,247,.12); border: 1px solid rgba(79,110,247,.25);
+      border-radius: 4px; font-size: 10px; color: var(--accent-l); font-family: var(--mono);
+    }
+    .hcw-dr-sep { font-size: 10px; color: var(--text-4); }
+    .hcw-bars-wrap {
+      background: #0e0e0e; padding: 10px 12px 0;
+    }
+    .hcw-bars {
+      display: flex; align-items: flex-end; gap: 6px; height: 80px;
+      border-bottom: 1px solid #222; padding-bottom: 3px; margin-bottom: 5px;
+    }
+    .hcw-bar {
+      flex: 1; border-radius: 3px 3px 0 0;
+      background: linear-gradient(to top, #1e2f80, #4f6ef7);
+      transition: height .4s ease;
+    }
+    .hcw-axis {
+      display: flex; justify-content: space-around; padding-bottom: 8px;
+      font-size: 8px; color: var(--text-4); font-family: var(--mono);
+    }
     .overlay-float {
-      position: absolute; top: 12px; right: -22px; width: 310px;
+      position: absolute; top: 14px; right: 6px; width: 272px;
       background: #1e1e1e; border: 1px solid #2e2e2e; border-radius: 10px;
       box-shadow: 0 20px 56px rgba(0,0,0,.8), 0 2px 8px rgba(0,0,0,.5);
       font-size: 12px; color: var(--text); font-family: var(--sans); z-index: 10;
@@ -262,23 +336,9 @@
     }
     .ov-applied-title { font-size: 11px; font-weight: 700; color: var(--green); margin-bottom: 2px; }
     .ov-applied-detail { font-size: 10px; color: var(--text-3); font-family: var(--mono); }
-    /* ── Hero text cycling keyframes ── */
-    @keyframes hero-text-out { to { opacity: 0; transform: translateY(-10px); } }
-    @keyframes hero-text-in  { from { opacity: 0; transform: translateY(14px); } to { opacity: 1; transform: translateY(0); } }
-    .hero-h1.h-exiting, .hero-sub.h-exiting { animation: hero-text-out .3s ease forwards; }
-    .hero-h1.h-entering, .hero-sub.h-entering { animation: hero-text-in .42s ease forwards; }
-    /* ── Applied state in browser chrome ── */
-    .bc-body.state-applied .mock-btn-hi {
-      animation: none !important;
-      box-shadow: 0 0 0 1.5px rgba(34,197,94,.5), 0 0 12px rgba(34,197,94,.2) !important;
-    }
-    .bc-body.state-applied .hi-label { opacity: 0; }
-    .bc-body.state-applied .mock-btn-applied { display: block; }
-    .mock-btn-applied {
-      display: none; position: absolute; top: -22px; left: 50%; transform: translateX(-50%);
-      background: var(--green); color: #fff; font-size: 9px; font-weight: 700;
-      padding: 2px 7px; border-radius: 999px; white-space: nowrap; font-family: var(--mono);
-    }
+    /* ── Sub text crossfade ── */
+    .hero-sub { transition: opacity .3s ease; }
+    .hero-sub.sub-fade { opacity: 0; }
     .ov-head {
       display: flex; align-items: flex-start; justify-content: space-between; gap: 8px;
       padding: 11px 13px 9px;
@@ -995,7 +1055,7 @@
       </div>
       <h1 class="hero-h1 fx d1">
         Click any element.<br/>
-        <span class="h-dim">Ship the fix.</span>
+        <span class="h-dim"><span id="tw-text"></span><span class="tw-cursor" id="tw-cursor">|</span></span>
       </h1>
       <p class="hero-sub fx d2">
         <strong>Alt+Click</strong> an element on your running app. Describe the change.
@@ -1047,26 +1107,60 @@
               <div class="mock-nav-link"></div><div class="mock-nav-link"></div><div class="mock-nav-link"></div>
             </div>
           </div>
-          <div style="margin-bottom:8px">
-            <div class="mock-h w80"></div><div class="mock-h w60"></div>
-            <div class="mock-h sm w90" style="margin-top:12px"></div><div class="mock-h sm w70"></div>
-          </div>
-          <div class="mock-buttons">
-            <div class="mock-btn-hi" style="position:relative;display:inline-block">
-              <span class="hi-label">Alt+Click</span>
-              <span class="mock-btn-applied">Fixed ✓</span>
-              Get started
+
+          <!-- Scene 0: Pricing page — CTA button color change -->
+          <div class="hero-scene active" id="hscene-0">
+            <div style="margin-bottom:10px">
+              <div class="mock-h w80"></div><div class="mock-h w60"></div>
+              <div class="mock-h sm w90" style="margin-top:10px"></div><div class="mock-h sm w70"></div>
             </div>
-            <div class="mock-btn-ghost">Learn more</div>
-          </div>
-          <div style="display:flex;gap:10px;margin-top:18px">
-            <div style="flex:1;height:58px;background:var(--border);border-radius:6px;opacity:.4"></div>
-            <div style="flex:1;height:58px;background:var(--border);border-radius:6px;opacity:.25"></div>
-            <div style="flex:1;height:58px;background:var(--border);border-radius:6px;opacity:.15"></div>
+            <div class="mock-buttons">
+              <div class="hero-cta" id="hero-cta">
+                <span class="hi-label">Alt+Click</span>
+                <span class="hi-applied">Changed ✓</span>
+                Get started
+              </div>
+              <div class="mock-btn-ghost">Learn more</div>
+            </div>
+            <div style="display:flex;gap:8px;margin-top:14px">
+              <div style="flex:1;height:44px;background:var(--border);border-radius:5px;opacity:.4"></div>
+              <div style="flex:1;height:44px;background:var(--border);border-radius:5px;opacity:.25"></div>
+              <div style="flex:1;height:44px;background:var(--border);border-radius:5px;opacity:.15"></div>
+            </div>
           </div>
 
-          <!-- Overlay floating panel -->
-          <div class="overlay-float">
+          <!-- Scene 1: Dashboard — bar chart gets date range filter -->
+          <div class="hero-scene" id="hscene-1">
+            <div class="hero-chart-wrap" id="hero-chart-wrap">
+              <div class="hcw-top">
+                <span class="hcw-title">Monthly Revenue</span>
+                <span class="hcw-altclick">Alt+Click</span>
+              </div>
+              <div class="hcw-daterange" id="hcw-daterange">
+                <span class="hcw-dr-label">Date range</span>
+                <div class="hcw-dr-pill">Jan 2025</div>
+                <span class="hcw-dr-sep">—</span>
+                <div class="hcw-dr-pill">Jun 2025</div>
+              </div>
+              <div class="hcw-bars-wrap">
+                <div class="hcw-bars">
+                  <div class="hcw-bar" style="height:42%"></div>
+                  <div class="hcw-bar" style="height:68%"></div>
+                  <div class="hcw-bar" style="height:35%"></div>
+                  <div class="hcw-bar" style="height:87%"></div>
+                  <div class="hcw-bar" style="height:55%"></div>
+                  <div class="hcw-bar" style="height:94%"></div>
+                  <div class="hcw-bar" style="height:62%"></div>
+                </div>
+                <div class="hcw-axis">
+                  <span>Jan</span><span>Feb</span><span>Mar</span><span>Apr</span><span>May</span><span>Jun</span><span>Jul</span>
+                </div>
+              </div>
+            </div>
+          </div>
+
+          <!-- Overlay floating panel (covers both scenes) -->
+          <div class="overlay-float" id="overlay-float">
             <div class="ov-head">
               <div>
                 <div class="ov-brand">
@@ -1075,15 +1169,14 @@
                   </div>
                   <span class="ov-title">ClickSmith</span>
                 </div>
-                <div class="ov-subtitle">Edit the selected UI element</div>
+                <div class="ov-subtitle" id="hv-subtitle">Edit the selected UI element</div>
               </div>
               <div style="display:flex;align-items:center;gap:6px">
-                <div class="ov-badge"><span class="ov-badge-dot"></span>ClickSmith ready · claude</div>
+                <div class="ov-badge"><span class="ov-badge-dot"></span>ready · claude</div>
                 <div class="ov-close">×</div>
               </div>
             </div>
             <div class="ov-body">
-              <!-- State A: capture -->
               <div class="ov-capture">
                 <div class="ov-slabel">Selected target</div>
                 <div class="ov-mark">
@@ -1096,7 +1189,6 @@
                   <div class="ov-submit" id="hv-submit" style="opacity:.4">Submit to agent</div>
                 </div>
               </div>
-              <!-- State B: applied -->
               <div class="ov-applied">
                 <div class="ov-applied-status">
                   <div class="ov-applied-dot"></div>
@@ -1108,11 +1200,11 @@
                 <div class="s4-diff">
                   <div class="s4-diff-header">
                     <span style="font-size:10px;color:var(--text-3);font-family:var(--mono)" id="hv-diff-file">src/components/Pricing.tsx</span>
-                    <span class="s4-diff-badge">+1 −1</span>
+                    <span class="s4-diff-badge" id="hv-diff-badge">+1 −1</span>
                   </div>
                   <div class="s4-diff-body">
-                    <div class="diff-line rem"><span class="diff-sym">−</span><span id="hv-diff-minus">className="btn-primary bg-indigo-500 ring-4"</span></div>
-                    <div class="diff-line add"><span class="diff-sym">+</span><span id="hv-diff-plus">className="btn-primary"</span></div>
+                    <div class="diff-line rem"><span class="diff-sym">−</span><span id="hv-diff-minus">className="btn-primary bg-indigo-500"</span></div>
+                    <div class="diff-line add"><span class="diff-sym">+</span><span id="hv-diff-plus">className="btn-primary bg-green-600"</span></div>
                   </div>
                 </div>
                 <div style="display:flex;gap:6px;justify-content:flex-end">
@@ -1854,75 +1946,124 @@
   });
 
   // ══════════════════════════════════════════════
-  // HERO CYCLING — text + overlay animation
+  // TYPEWRITER — hero heading second line
   // ══════════════════════════════════════════════
-  const HERO_STATES = [
+  const TW_LINES = [
+    { text: 'Ship the fix.',       sub: '<strong>Alt+Click</strong> any UI element on your running app. Describe the change. ClickSmith resolves the exact file and hands a stable-locator bundle to your agent — in a sandboxed git worktree, so your tree is never touched until you hit <strong>Apply</strong>.' },
+    { text: 'Kill the error.',     sub: '<strong>Alt+Click</strong> a broken component to capture its stack trace, DOM path, and source location. Your agent gets the exact line — no copy-pasting, no guessing.' },
+    { text: 'Build the feature.',  sub: 'Describe what you need. ClickSmith resolves the source file, component tree, and nearby test coverage from your <strong>Alt+Click</strong> — so your agent builds in the right place, first try.' },
+    { text: 'Cut token waste.',    sub: 'Skip the 50k-token codebase dump. ClickSmith resolves the <strong>exact file + line</strong> from your click — agents get precise context, higher-quality edits, at a fraction of the cost.' },
+  ];
+
+  const twEl     = document.getElementById('tw-text');
+  const twCursor = document.getElementById('tw-cursor');
+  const heroSub  = document.querySelector('.hero-sub');
+  let twIdx = 0, twTimer = null, twDeleting = false, twI = 0;
+
+  function twTick() {
+    if (!twEl) return;
+    const line = TW_LINES[twIdx];
+    if (!twDeleting) {
+      twI++;
+      twEl.textContent = line.text.slice(0, twI);
+      if (twI === line.text.length) {
+        // Pause before deleting; update sub text on each new phrase
+        twDeleting = true;
+        if (twCursor) twCursor.classList.add('blinking');
+        twTimer = setTimeout(twTick, 2400);
+        return;
+      }
+      if (twCursor) twCursor.classList.remove('blinking');
+      twTimer = setTimeout(twTick, 78);
+    } else {
+      twI--;
+      twEl.textContent = line.text.slice(0, twI);
+      if (twI === 0) {
+        twDeleting = false;
+        twIdx = (twIdx + 1) % TW_LINES.length;
+        // Crossfade the sub paragraph
+        if (heroSub) {
+          heroSub.classList.add('sub-fade');
+          setTimeout(() => {
+            heroSub.innerHTML = TW_LINES[twIdx].sub;
+            heroSub.classList.remove('sub-fade');
+          }, 300);
+        }
+        twTimer = setTimeout(twTick, 420);
+        return;
+      }
+      twTimer = setTimeout(twTick, 40);
+    }
+  }
+
+  // Start typewriter after initial page settle
+  setTimeout(() => {
+    if (twCursor) twCursor.classList.add('blinking');
+    twTimer = setTimeout(twTick, 900);
+  }, 800);
+
+  // ══════════════════════════════════════════════
+  // HERO VISUAL CYCLE — 2 examples
+  // ══════════════════════════════════════════════
+  const VISUAL_STATES = [
     {
-      h1: 'Click any element.<br><span class="h-dim">Ship the fix.</span>',
-      sub: '<strong>Alt+Click</strong> any UI element on your running app. Describe the change. ClickSmith resolves the exact file and hands a stable-locator bundle to your agent — in a sandboxed git worktree, so your tree is never touched until you hit <strong>Apply</strong>.',
-      prompt: 'remove the highlighted color',
+      scene: 0,
       meta: 'button · Get started · /pricing',
+      prompt: 'change the button to green',
       commit: 'a3f7e9b2',
       file: 'src/components/Pricing.tsx',
-      minus: 'className="btn-primary bg-indigo-500 ring-4"',
-      plus: 'className="btn-primary"',
+      badge: '+2 −1',
+      minus: 'className="btn-primary bg-indigo-500"',
+      plus:  'className="btn-primary bg-green-600"',
+      onApply()  { const b = document.getElementById('hero-cta'); if (b) b.classList.add('applied'); },
+      onReset()  { const b = document.getElementById('hero-cta'); if (b) b.classList.remove('applied'); },
     },
     {
-      h1: 'See a console error.<br><span class="h-dim">Kill it.</span>',
-      sub: '<strong>Alt+Click</strong> a broken component to capture its stack trace, DOM path, and source location. Your agent gets the exact line to fix — no copy-pasting, no guessing.',
-      prompt: 'fix the TypeError on user.profile',
-      meta: 'div.card · UserProfile · /dashboard',
-      commit: 'f2c91a44',
-      file: 'src/components/UserProfile.tsx',
-      minus: "const name = user.profile.name",
-      plus: 'const name = user.profile?.name ?? "—"',
-    },
-    {
-      h1: 'Point at a component.<br><span class="h-dim">Build the feature.</span>',
-      sub: 'Describe what you need. ClickSmith resolves the source file, component tree, and nearby test coverage from your <strong>Alt+Click</strong> — so your agent builds in the right place, first try.',
-      prompt: 'add skeleton loading state',
-      meta: 'section · FeedList · /home',
-      commit: '9e3d17b8',
-      file: 'src/components/FeedList.tsx',
-      minus: '{ isLoading && <Spinner /> }',
-      plus: '{ isLoading ? <FeedSkeleton rows={3} /> : null }',
-    },
-    {
-      h1: 'Surgical context.<br><span class="h-dim">Zero token waste.</span>',
-      sub: 'Skip the 50k-token codebase dump. ClickSmith resolves the <strong>exact file + line</strong> from your click — agents get precise context, higher-quality edits, at a fraction of the cost.',
-      prompt: 'extract color to a design token',
-      meta: 'button · HeroCTA · /landing',
-      commit: '3b8e22f1',
-      file: 'src/tokens/colors.ts',
-      minus: 'background: "#4f6ef7"',
-      plus: 'background: "var(--color-accent)"',
+      scene: 1,
+      meta: 'div.chart-wrap · AnalyticsChart · /dashboard',
+      prompt: 'add a date range filter to the chart',
+      commit: 'c74f2d19',
+      file: 'src/components/AnalyticsChart.tsx',
+      badge: '+5 −1',
+      minus: '<BarChart data={data} />',
+      plus:  '<DateRangePicker onChange={setRange} />\n<BarChart data={filtered} />',
+      onApply()  {
+        const cw = document.getElementById('hero-chart-wrap');
+        const dr = document.getElementById('hcw-daterange');
+        if (cw) cw.classList.remove('capture');
+        if (dr) dr.classList.add('visible');
+      },
+      onReset()  {
+        const cw = document.getElementById('hero-chart-wrap');
+        const dr = document.getElementById('hcw-daterange');
+        if (cw) cw.classList.add('capture');
+        if (dr) dr.classList.remove('visible');
+      },
     },
   ];
 
-  const heroH1   = document.querySelector('.hero-h1');
-  const heroSub  = document.querySelector('.hero-sub');
-  const ovFloat  = document.querySelector('.overlay-float');
-  const bcBody   = document.querySelector('.bc-body');
+  const ovFloat  = document.getElementById('overlay-float');
   const hvTyped  = document.getElementById('hv-typed');
   const hvMeta   = document.getElementById('hv-meta');
   const hvSubmit = document.getElementById('hv-submit');
   const hvCommit = document.getElementById('hv-commit');
   const hvFile   = document.getElementById('hv-diff-file');
+  const hvBadge  = document.getElementById('hv-diff-badge');
   const hvMinus  = document.getElementById('hv-diff-minus');
   const hvPlus   = document.getElementById('hv-diff-plus');
 
-  let heroIdx = 0;
+  let visIdx = 0;
   let ovTypingInterval = null;
-  let heroCycleTimers = [];
+  let visCycleTimers = [];
 
-  function clearHeroCycle() {
-    heroCycleTimers.forEach(clearTimeout);
-    heroCycleTimers = [];
+  function clearVisCycle() {
+    visCycleTimers.forEach(clearTimeout);
+    visCycleTimers = [];
     clearInterval(ovTypingInterval);
     ovTypingInterval = null;
   }
 
-  function typePrompt(text, doneCb) {
+  function typePrompt(text) {
     if (!hvTyped) return;
     hvTyped.textContent = '';
     if (hvSubmit) hvSubmit.style.opacity = '.4';
@@ -1934,75 +2075,67 @@
         clearInterval(ovTypingInterval);
         ovTypingInterval = null;
         if (hvSubmit) hvSubmit.style.opacity = '1';
-        if (doneCb) doneCb();
       }
-    }, 48);
+    }, 52);
   }
 
-  function fadeOverlay(doneCb) {
-    if (!ovFloat) return;
+  function fadeOverlay(cb) {
+    if (!ovFloat) { if (cb) cb(); return; }
     ovFloat.style.opacity = '0';
-    heroCycleTimers.push(setTimeout(() => {
-      if (doneCb) doneCb();
-      ovFloat.style.opacity = '1';
-    }, 380));
+    const t = setTimeout(() => { if (cb) cb(); ovFloat.style.opacity = '1'; }, 380);
+    visCycleTimers.push(t);
   }
 
-  function runHeroCycle(idx) {
-    clearHeroCycle();
-    const s = HERO_STATES[idx];
+  function switchScene(toIdx) {
+    document.querySelectorAll('.hero-scene').forEach((s, i) => {
+      s.classList.toggle('active', i === toIdx);
+    });
+  }
 
-    // Update capture state content
-    if (hvMeta) hvMeta.textContent = s.meta;
+  function runVisCycle(idx) {
+    clearVisCycle();
+    const s = VISUAL_STATES[idx];
+
+    // Show scene + reset visual state
+    s.onReset();
+    switchScene(s.scene);
+
+    // Overlay: capture state
     if (ovFloat) ovFloat.classList.remove('state-applied');
-    if (bcBody)  bcBody.classList.remove('state-applied');
-
-    // Start typing the prompt
+    if (hvMeta) hvMeta.textContent = s.meta;
     typePrompt(s.prompt);
 
-    // At 3.6s: fade → switch to applied state
-    heroCycleTimers.push(setTimeout(() => {
+    // 3.8s → fade to applied
+    visCycleTimers.push(setTimeout(() => {
       clearInterval(ovTypingInterval);
       fadeOverlay(() => {
         if (hvCommit) hvCommit.textContent = s.commit;
         if (hvFile)   hvFile.textContent   = s.file;
+        if (hvBadge)  hvBadge.textContent  = s.badge;
         if (hvMinus)  hvMinus.textContent  = s.minus;
         if (hvPlus)   hvPlus.textContent   = s.plus;
         if (ovFloat)  ovFloat.classList.add('state-applied');
-        if (bcBody)   bcBody.classList.add('state-applied');
+        s.onApply();
       });
-    }, 3600));
+    }, 3800));
 
-    // At 7.0s: fade → back to capture (prep for text change)
-    heroCycleTimers.push(setTimeout(() => {
+    // 7.6s → fade back + switch to next scene
+    visCycleTimers.push(setTimeout(() => {
       fadeOverlay(() => {
+        s.onReset();
         if (ovFloat) ovFloat.classList.remove('state-applied');
-        if (bcBody)  bcBody.classList.remove('state-applied');
+        visIdx = (idx + 1) % VISUAL_STATES.length;
+        runVisCycle(visIdx);
       });
-    }, 7000));
-
-    // At 7.8s: cycle hero text out
-    heroCycleTimers.push(setTimeout(() => {
-      if (heroH1) heroH1.classList.add('h-exiting');
-      if (heroSub) heroSub.classList.add('h-exiting');
-    }, 7800));
-
-    // At 8.1s: update hero text + animate in + start next cycle
-    heroCycleTimers.push(setTimeout(() => {
-      heroIdx = (idx + 1) % HERO_STATES.length;
-      const ns = HERO_STATES[heroIdx];
-      if (heroH1) { heroH1.innerHTML = ns.h1; heroH1.classList.remove('h-exiting'); heroH1.classList.add('h-entering'); }
-      if (heroSub) { heroSub.innerHTML = ns.sub; heroSub.classList.remove('h-exiting'); heroSub.classList.add('h-entering'); }
-      setTimeout(() => {
-        if (heroH1) heroH1.classList.remove('h-entering');
-        if (heroSub) heroSub.classList.remove('h-entering');
-      }, 500);
-      runHeroCycle(heroIdx);
-    }, 8100));
+    }, 7600));
   }
 
-  // Start hero cycle after a short delay so page settle first
-  setTimeout(() => runHeroCycle(0), 1200);
+  // Init chart in capture state
+  const initCw = document.getElementById('hero-chart-wrap');
+  if (initCw) initCw.classList.add('capture');
+
+  // Start after page settles
+  setTimeout(() => runVisCycle(0), 1000);
 
   // ── Nav active link ──
   document.querySelectorAll('section[id]').forEach(sec => {
