@@ -6,104 +6,292 @@
     <title>ClickSmith</title>
     <style>
       :root {
-        color-scheme: light;
+        color-scheme: dark;
+        --bg:      #141414;
+        --card:    #1e1e1e;
+        --input:   #272727;
+        --line:    #2e2e2e;
+        --line-2:  #3a3a3a;
+        --text:    #ebebeb;
+        --sub:     #999999;
+        --dim:     #555555;
+        --blue:    #4f6ef7;
+        --green:   #22c55e;
+        --red:     #f87171;
       }
+
+      * { box-sizing: border-box; margin: 0; padding: 0; }
+
       body {
-        width: 280px;
-        margin: 0;
-        padding: 14px;
-        background: #fff;
-        color: #172033;
-        font:
-          13px/1.45 system-ui,
-          -apple-system,
-          BlinkMacSystemFont,
-          'Segoe UI',
-          sans-serif;
+        width: 320px;
+        background: var(--bg);
+        color: var(--text);
+        font: 13px/1.5 -apple-system, BlinkMacSystemFont, 'Inter', 'Segoe UI', sans-serif;
+        -webkit-font-smoothing: antialiased;
       }
-      h1 {
-        margin: 0;
-        color: #101827;
-        font-size: 15px;
-        letter-spacing: 0;
+
+      /* ── Header ── */
+      .header {
+        padding: 13px 16px 11px;
+        background: var(--card);
+        border-bottom: 1px solid var(--line);
       }
-      .top {
+
+      .row {
         display: flex;
         align-items: center;
         justify-content: space-between;
-        gap: 12px;
-        margin-bottom: 14px;
       }
-      .status {
+
+      .brand {
+        display: flex;
+        align-items: center;
+        gap: 9px;
+      }
+
+      .icon {
+        width: 26px;
+        height: 26px;
+        border-radius: 7px;
+        background: var(--blue);
+        display: flex;
+        align-items: center;
+        justify-content: center;
+        flex-shrink: 0;
+      }
+
+      .icon svg { width: 14px; height: 14px; }
+
+      h1 {
+        font-size: 14px;
+        font-weight: 600;
+        color: var(--text);
+        letter-spacing: -0.2px;
+      }
+
+      /* ── Status pill ── */
+      .pill {
         display: inline-flex;
         align-items: center;
-        min-height: 24px;
-        padding: 0 8px;
-        border: 1px solid #dbe3ef;
+        gap: 5px;
+        padding: 3px 9px;
         border-radius: 999px;
-        background: #f8fafc;
-        color: #475467;
         font-size: 11px;
-        font-weight: 650;
-        white-space: nowrap;
+        font-weight: 500;
+        border: 1px solid var(--line-2);
+        color: var(--sub);
+        background: transparent;
       }
-      .row {
+
+      .pill.on {
+        border-color: rgba(34,197,94,.25);
+        color: var(--green);
+      }
+
+      .pill.off {
+        border-color: rgba(248,113,113,.2);
+        color: var(--red);
+      }
+
+      .dot {
+        width: 6px;
+        height: 6px;
+        border-radius: 50%;
+        background: currentColor;
+        flex-shrink: 0;
+      }
+
+      .pill.on .dot { animation: blink 2s infinite; }
+
+      @keyframes blink {
+        0%, 100% { opacity: 1; }
+        50%       { opacity: .4; }
+      }
+
+      /* ── Body ── */
+      .body {
+        padding: 14px 16px;
         display: flex;
         flex-direction: column;
-        gap: 6px;
-        margin: 0;
+        gap: 12px;
       }
-      label {
-        color: #667085;
-        font-size: 12px;
-        font-weight: 650;
+
+      /* ── Section label ── */
+      .label {
+        font-size: 10px;
+        font-weight: 600;
+        letter-spacing: .07em;
+        text-transform: uppercase;
+        color: var(--dim);
+        margin-bottom: 5px;
       }
-      .dot {
-        display: inline-block;
-        width: 7px;
-        height: 7px;
-        margin-right: 6px;
-        border-radius: 50%;
-        background: #ef4444;
-      }
-      .on {
-        background: #16a34a;
-      }
+
+      /* ── Select ── */
+      .select-wrap { position: relative; }
+
       select {
         width: 100%;
-        min-height: 34px;
-        padding: 0 8px;
-        border: 1px solid #cfd8e6;
-        border-radius: 7px;
-        background: #fff;
-        color: #101827;
+        height: 34px;
+        padding: 0 30px 0 10px;
+        border: 1px solid var(--line);
+        border-radius: 6px;
+        background: var(--input);
+        color: var(--text);
         font: inherit;
+        font-size: 13px;
+        cursor: pointer;
+        appearance: none;
+        -webkit-appearance: none;
+        outline: none;
       }
-      .hint {
-        margin: 12px 0 0;
-        padding-top: 10px;
-        border-top: 1px solid #e7ebf2;
-        color: #667085;
+
+      select:hover { border-color: var(--line-2); }
+
+      select:focus {
+        border-color: var(--blue);
+        box-shadow: 0 0 0 2px rgba(79,110,247,.14);
+      }
+
+      .chevron {
+        position: absolute;
+        right: 9px;
+        top: 50%;
+        transform: translateY(-50%);
+        pointer-events: none;
+        color: var(--dim);
+      }
+
+      /* ── Desc strip ── */
+      .desc {
+        display: flex;
+        align-items: center;
+        gap: 7px;
+        padding: 7px 10px;
+        background: var(--input);
+        border: 1px solid var(--line);
+        border-radius: 6px;
+        color: var(--sub);
         font-size: 12px;
+      }
+
+      .desc-dot {
+        width: 5px;
+        height: 5px;
+        border-radius: 50%;
+        background: var(--blue);
+        flex-shrink: 0;
+        opacity: .7;
+      }
+
+      /* ── Shortcut ── */
+      .shortcut {
+        display: flex;
+        align-items: center;
+        gap: 8px;
+        padding: 9px 10px;
+        background: var(--input);
+        border: 1px solid var(--line);
+        border-radius: 6px;
+        color: var(--sub);
+        font-size: 12px;
+        line-height: 1.45;
+      }
+
+      .shortcut svg { color: var(--blue); flex-shrink: 0; opacity: .8; }
+
+      kbd {
+        display: inline-flex;
+        padding: 1px 5px;
+        border-radius: 4px;
+        background: var(--card);
+        border: 1px solid var(--line-2);
+        color: var(--blue);
+        font: 600 10.5px/1.4 'SF Mono', 'Fira Code', monospace;
+      }
+
+      /* ── Footer ── */
+      .footer {
+        padding: 8px 16px;
+        border-top: 1px solid var(--line);
+        display: flex;
+        align-items: center;
+        justify-content: space-between;
+      }
+
+      .ver {
+        font-size: 11px;
+        color: var(--dim);
+        font-family: 'SF Mono', 'Fira Code', monospace;
+      }
+
+      .wordmark {
+        font-size: 11px;
+        font-weight: 600;
+        color: var(--sub);
+        letter-spacing: -0.1px;
       }
     </style>
   </head>
   <body>
-    <div class="top">
-      <h1>ClickSmith</h1>
-      <span id="status" class="status"><span class="dot off"></span>Checking</span>
+
+    <div class="header">
+      <div class="row">
+        <div class="brand">
+          <div class="icon">
+            <svg viewBox="0 0 24 24" fill="none" stroke="white" stroke-width="2.3" stroke-linecap="round" stroke-linejoin="round">
+              <path d="M4 4l7.07 17 2.51-7.39L21 11.07z"/>
+            </svg>
+          </div>
+          <h1>ClickSmith</h1>
+        </div>
+        <span id="status" class="pill off">
+          <span class="dot"></span>
+          <span id="status-text">Checking</span>
+        </span>
+      </div>
     </div>
-    <div class="row">
-      <label for="agent">Agent</label>
-      <select id="agent">
-        <option value="claude">Claude Code</option>
-        <option value="cursor">Cursor</option>
-        <option value="codex">Codex</option>
-        <option value="antigravity">Antigravity</option>
-        <option value="generic">Generic</option>
-      </select>
+
+    <div class="body">
+
+      <div>
+        <div class="label">Agent</div>
+        <div class="select-wrap">
+          <select id="agent">
+            <option value="claude">Claude Code</option>
+            <option value="cursor">Cursor</option>
+            <option value="codex">Codex</option>
+            <option value="antigravity">Antigravity</option>
+            <option value="generic">Generic</option>
+          </select>
+          <svg class="chevron" width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round">
+            <polyline points="6 9 12 15 18 9"/>
+          </svg>
+        </div>
+        <div class="desc" style="margin-top:6px">
+          <span class="desc-dot"></span>
+          <span id="agent-desc">Routes prompts via Claude Code CLI</span>
+        </div>
+      </div>
+
+      <div>
+        <div class="label">How to use</div>
+        <div class="shortcut">
+          <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+            <rect x="2" y="3" width="20" height="14" rx="2"/>
+            <line x1="8" y1="21" x2="16" y2="21"/>
+            <line x1="12" y1="17" x2="12" y2="21"/>
+          </svg>
+          <span>Press <kbd>Alt</kbd> + <kbd>Click</kbd> any element, then describe the change in the overlay.</span>
+        </div>
+      </div>
+
     </div>
-    <p class="hint">Alt+Click a page element, then describe the edit in the overlay.</p>
+
+    <div class="footer">
+      <span class="ver" id="version">v—</span>
+      <span class="wordmark">ClickSmith</span>
+    </div>
+
     <script type="module" src="./main.ts"></script>
   </body>
 </html>

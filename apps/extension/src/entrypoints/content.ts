@@ -87,6 +87,11 @@ export default defineContentScript({
           overlay.setState(state);
         } else if (msg.type === 'daemon-event' && msg.event) {
           overlay.onDaemonEvent(msg.event);
+          if (msg.event.type === 'agent-done' || msg.event.type === 'agent-error') {
+            elementBuffer = [];
+            capturedApp = null;
+            nextLocalId = 1;
+          }
         }
       },
     );

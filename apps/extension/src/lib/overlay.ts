@@ -33,6 +33,8 @@ const EDIT_INPLACE_EXECUTION: Partial<ExecutionOptions> = {
 
 const STYLE = `
 :host { all: initial; }
+* { box-sizing: border-box; }
+
 .cs-backdrop {
   position: fixed;
   inset: 0;
@@ -42,10 +44,11 @@ const STYLE = `
   height: 100%;
   padding: 0;
   border: 0;
-  background: rgba(248, 250, 252, .68);
-  backdrop-filter: blur(1.5px);
+  background: rgba(0, 0, 0, 0.45);
+  backdrop-filter: blur(1px);
   cursor: default;
 }
+
 .cs-root {
   position: fixed;
   right: 24px;
@@ -55,255 +58,363 @@ const STYLE = `
   width: 420px;
   max-width: calc(100vw - 24px);
   max-height: calc(100vh - 24px);
-  font: 13px/1.45 Inter, ui-sans-serif, system-ui, -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif;
-  color: #172033;
+  font: 13px/1.45 -apple-system, BlinkMacSystemFont, Inter, "Segoe UI", sans-serif;
+  color: #ebebeb;
+  -webkit-font-smoothing: antialiased;
 }
+
 .cs-card {
   display: flex;
   max-height: inherit;
   flex-direction: column;
   overflow: hidden;
-  background: #fff;
-  border: 1px solid #d8dee9;
-  border-radius: 8px;
-  box-shadow: 0 22px 60px rgba(15, 23, 42, .22), 0 4px 16px rgba(15, 23, 42, .12);
+  background: #1e1e1e;
+  border: 1px solid #2e2e2e;
+  border-radius: 10px;
+  box-shadow: 0 16px 48px rgba(0, 0, 0, 0.5), 0 2px 8px rgba(0, 0, 0, 0.3);
 }
+
 .cs-head {
   display: flex;
   align-items: flex-start;
   justify-content: space-between;
   gap: 12px;
-  padding: 14px 16px 12px;
-  border-bottom: 1px solid #e7ebf2;
-  background: linear-gradient(180deg, #ffffff 0%, #f8fafc 100%);
+  padding: 13px 16px 11px;
+  border-bottom: 1px solid #2e2e2e;
+  background: #242424;
 }
+
 .cs-title-wrap { min-width: 0; }
+
+.cs-brand {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+
+.cs-brand-icon {
+  width: 24px;
+  height: 24px;
+  border-radius: 6px;
+  background: #4f6ef7;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  flex-shrink: 0;
+}
+
+.cs-brand-icon svg { width: 12px; height: 12px; }
+
 .cs-title {
   display: block;
   font-size: 14px;
-  font-weight: 700;
-  letter-spacing: 0;
-  color: #101827;
+  font-weight: 600;
+  color: #ebebeb;
+  letter-spacing: -0.2px;
 }
+
 .cs-subtitle {
   margin-top: 2px;
   font-size: 12px;
-  color: #667085;
+  color: #555;
 }
+
 .cs-head-actions {
   display: flex;
   align-items: center;
   gap: 8px;
   flex: 0 0 auto;
 }
+
 .cs-badge {
   display: inline-flex;
   align-items: center;
-  min-height: 24px;
-  padding: 0 8px;
-  border: 1px solid #dbe3ef;
+  gap: 5px;
+  padding: 3px 9px;
   border-radius: 999px;
-  background: #f8fafc;
-  color: #475467;
   font-size: 11px;
-  font-weight: 600;
+  font-weight: 500;
+  border: 1px solid #3a3a3a;
+  color: #999;
 }
+
+.cs-badge.online {
+  border-color: rgba(34,197,94,.25);
+  color: #22c55e;
+}
+
+.cs-badge.offline {
+  border-color: rgba(248,113,113,.2);
+  color: #f87171;
+}
+
 .cs-dot {
-  display: inline-block;
-  width: 7px;
-  height: 7px;
-  margin-right: 6px;
+  width: 6px;
+  height: 6px;
   border-radius: 50%;
-  background: #ef4444;
+  background: currentColor;
+  flex-shrink: 0;
 }
-.cs-dot.on { background: #16a34a; }
+
+.cs-badge.online .cs-dot { animation: cs-blink 2s infinite; }
+
+@keyframes cs-blink {
+  0%, 100% { opacity: 1; }
+  50%       { opacity: .35; }
+}
+
 .cs-close {
   display: inline-grid;
   place-items: center;
-  width: 28px;
-  height: 28px;
+  width: 26px;
+  height: 26px;
   padding: 0;
-  border: 1px solid #d8dee9;
-  border-radius: 7px;
-  background: #fff;
-  color: #475467;
+  border: 1px solid #2e2e2e;
+  border-radius: 6px;
+  background: transparent;
+  color: #555;
   cursor: pointer;
-  font: inherit;
-  font-size: 16px;
-  line-height: 1;
+  font: 500 14px/1 inherit;
+  transition: background 0.1s, color 0.1s;
 }
-.cs-close:hover { background: #f3f6fa; color: #111827; }
+
+.cs-close:hover { background: #2e2e2e; color: #ebebeb; }
+
 .cs-body {
   display: flex;
   flex-direction: column;
   gap: 12px;
-  padding: 14px 16px 16px;
+  padding: 13px 16px 15px;
   overflow: auto;
+  background: #1a1a1a;
 }
+
 .cs-section-title {
-  margin: 0 0 8px;
-  font-size: 11px;
-  font-weight: 700;
-  letter-spacing: .04em;
-  color: #667085;
+  margin: 0 0 7px;
+  font-size: 10px;
+  font-weight: 600;
+  letter-spacing: .07em;
+  color: #555;
   text-transform: uppercase;
 }
+
 .cs-marks {
   display: flex;
   flex-direction: column;
-  gap: 6px;
+  gap: 5px;
   max-height: 136px;
   overflow: auto;
 }
+
 .cs-mark {
   display: grid;
   grid-template-columns: auto minmax(0, 1fr) auto;
   align-items: center;
   gap: 8px;
-  min-height: 34px;
-  padding: 6px 8px;
-  border: 1px solid #e5eaf1;
-  border-radius: 7px;
-  background: #fbfcfe;
+  min-height: 32px;
+  padding: 5px 8px;
+  border: 1px solid #2e2e2e;
+  border-radius: 6px;
+  background: #242424;
 }
+
 .cs-id {
   display: inline-flex;
   align-items: center;
-  height: 22px;
-  padding: 0 7px;
+  height: 20px;
+  padding: 0 6px;
   border-radius: 999px;
-  background: #eef5ff;
-  color: #175cd3;
-  font-size: 12px;
-  font-weight: 700;
+  background: rgba(79,110,247,.12);
+  color: #6b84f5;
+  font-size: 11px;
+  font-weight: 600;
 }
+
 .cs-mark .meta {
   min-width: 0;
   overflow: hidden;
-  color: #344054;
+  color: #777;
   text-overflow: ellipsis;
   white-space: nowrap;
+  font-size: 12px;
+  font-family: 'SF Mono', 'Fira Code', ui-monospace, monospace;
 }
+
 .cs-x {
   display: inline-grid;
   place-items: center;
-  width: 24px;
-  height: 24px;
+  width: 22px;
+  height: 22px;
   padding: 0;
   border: 0;
-  border-radius: 6px;
+  border-radius: 5px;
   background: transparent;
-  color: #98a2b3;
+  color: #555;
   cursor: pointer;
-  font: inherit;
-  font-size: 15px;
+  font: 500 13px/1 inherit;
+  transition: background 0.1s, color 0.1s;
 }
-.cs-x:hover { background: #eef2f7; color: #344054; }
+
+.cs-x:hover { background: #2e2e2e; color: #ebebeb; }
+
 textarea {
   width: 100%;
-  min-height: 86px;
+  min-height: 84px;
   box-sizing: border-box;
   resize: vertical;
-  padding: 10px 11px;
-  border: 1px solid #cfd8e6;
-  border-radius: 7px;
+  padding: 9px 11px;
+  border: 1px solid #2e2e2e;
+  border-radius: 6px;
   outline: none;
-  background: #fff;
-  color: #101827;
+  background: #242424;
+  color: #ebebeb;
   font: inherit;
+  font-size: 13px;
+  transition: border-color 0.15s;
 }
+
+textarea::placeholder { color: #555; }
+
 textarea:focus {
-  border-color: #2f6fed;
-  box-shadow: 0 0 0 3px rgba(47, 111, 237, .12);
+  border-color: #4f6ef7;
+  box-shadow: 0 0 0 2px rgba(79,110,247,.12);
 }
+
 .cs-actions {
   display: flex;
   align-items: center;
   justify-content: space-between;
   gap: 10px;
 }
+
 .cs-primary,
 .cs-ghost {
   display: inline-flex;
   align-items: center;
   justify-content: center;
-  min-height: 34px;
-  padding: 0 12px;
-  border-radius: 7px;
+  min-height: 32px;
+  padding: 0 14px;
+  border-radius: 6px;
   cursor: pointer;
-  font: inherit;
-  font-weight: 650;
+  font: 500 13px/1 inherit;
+  transition: background 0.1s, border-color 0.1s;
 }
+
 .cs-primary {
-  border: 1px solid #2563eb;
-  background: #2563eb;
+  border: 1px solid #4f6ef7;
+  background: #4f6ef7;
   color: #fff;
 }
-.cs-primary:hover { background: #1d4ed8; border-color: #1d4ed8; }
-.cs-primary:disabled {
-  opacity: .55;
-  cursor: not-allowed;
-}
+
+.cs-primary:hover { background: #3d5ce8; border-color: #3d5ce8; }
+.cs-primary:disabled { opacity: .35; cursor: not-allowed; }
+
 .cs-ghost {
-  border: 1px solid #d8dee9;
-  background: #fff;
-  color: #344054;
+  border: 1px solid #2e2e2e;
+  background: transparent;
+  color: #999;
 }
-.cs-ghost:hover { background: #f8fafc; }
-.cs-ghost:disabled {
-  opacity: .55;
-  cursor: not-allowed;
-}
+
+.cs-ghost:hover { background: #272727; border-color: #3a3a3a; color: #ebebeb; }
+.cs-ghost:disabled { opacity: .35; cursor: not-allowed; }
+
 .cs-inline-status {
   flex: 1 1 auto;
   min-width: 0;
   min-height: 18px;
-  color: #667085;
+  color: #555;
   font-size: 12px;
   overflow-wrap: anywhere;
 }
+
 .cs-run-panel {
   display: none;
   flex-direction: column;
   gap: 10px;
-  padding: 0 16px 16px;
+  padding: 0 16px 15px;
+  background: #1a1a1a;
 }
+
 .cs-stage {
   display: grid;
   grid-template-columns: auto minmax(0, 1fr);
   gap: 10px;
   align-items: start;
   padding: 11px;
-  border: 1px solid #dbe7ff;
+  border: 1px solid #2e2e2e;
   border-radius: 7px;
-  background: #f6f9ff;
+  background: #242424;
 }
+
 .cs-spinner {
-  display: inline-block;
-  width: 15px;
-  height: 15px;
-  margin-top: 2px;
-  border: 2px solid #bdd2ff;
-  border-top-color: #2563eb;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  width: 16px;
+  height: 16px;
+  margin-top: 1px;
+  flex-shrink: 0;
   border-radius: 50%;
-  animation: cs-spin .8s linear infinite;
+  border: 2px solid #333;
+  border-top-color: #4f6ef7;
+  animation: cs-spin 0.7s linear infinite;
 }
-.cs-stage:not(.is-spinning) .cs-spinner {
-  border-color: #22c55e;
-  border-top-color: #22c55e;
+
+.cs-stage.is-done .cs-spinner {
+  border: none;
+  background: #22c55e;
   animation: none;
 }
+
+.cs-stage.is-done .cs-spinner::after {
+  content: '';
+  display: block;
+  width: 7px;
+  height: 4px;
+  border-left: 1.5px solid #fff;
+  border-bottom: 1.5px solid #fff;
+  transform: rotate(-45deg) translateY(-1px);
+}
+
+.cs-stage.is-error .cs-spinner {
+  border: none;
+  background: #ef4444;
+  animation: none;
+  font: 600 10px/1 inherit;
+  color: #fff;
+}
+
+.cs-stage.is-error .cs-spinner::after {
+  content: '✕';
+  color: #fff;
+  font-size: 9px;
+}
+
+.cs-hint {
+  margin-top: 5px;
+  font: 11px/1.4 'SF Mono', 'Fira Code', ui-monospace, monospace;
+  color: #4f6ef7;
+  opacity: 0;
+  transition: opacity 0.3s ease;
+  min-height: 14px;
+}
+
+.cs-hint.visible { opacity: 0.6; }
+.cs-stage:not(.is-spinning) .cs-hint { display: none; }
+
 .cs-stage-title {
   overflow-wrap: anywhere;
-  color: #172033;
-  font-weight: 700;
+  color: #ebebeb;
+  font-weight: 600;
 }
+
 .cs-stage-detail {
   margin-top: 2px;
   overflow-wrap: anywhere;
-  color: #5f6c80;
+  color: #777;
   font-size: 12px;
 }
+
 .cs-stage-meta {
   display: flex;
   align-items: center;
@@ -311,28 +422,31 @@ textarea:focus {
   gap: 10px;
   margin-top: 2px;
 }
-.cs-stage-meta .cs-stage-detail {
-  min-width: 0;
-  margin-top: 0;
-}
+
+.cs-stage-meta .cs-stage-detail { min-width: 0; margin-top: 0; }
+
 .cs-elapsed {
   flex: 0 0 auto;
-  color: #475467;
+  color: #555;
   font-size: 11px;
-  font-weight: 700;
+  font-weight: 500;
   white-space: nowrap;
+  font-family: 'SF Mono', 'Fira Code', ui-monospace, monospace;
 }
+
 .cs-terminal-bar {
   display: flex;
   align-items: center;
   justify-content: space-between;
   gap: 8px;
 }
+
 .cs-terminal-actions {
   display: flex;
   align-items: center;
-  gap: 8px;
+  gap: 6px;
 }
+
 .cs-log {
   display: none;
   max-height: 180px;
@@ -341,12 +455,13 @@ textarea:focus {
   white-space: pre-wrap;
   overflow-wrap: anywhere;
   padding: 10px;
-  border: 1px solid #d8dee9;
-  border-radius: 7px;
-  background: #111827;
-  color: #e5e7eb;
-  font: 11px/1.45 ui-monospace, SFMono-Regular, Menlo, Consolas, "Liberation Mono", monospace;
+  border: 1px solid #2e2e2e;
+  border-radius: 6px;
+  background: #141414;
+  color: #777;
+  font: 11px/1.5 'SF Mono', ui-monospace, SFMono-Regular, Menlo, monospace;
 }
+
 @keyframes cs-spin { to { transform: rotate(360deg); } }
 `;
 
@@ -363,6 +478,21 @@ export function mountOverlay(handlers: OverlayHandlers): Overlay {
   shadow.append(style);
   document.documentElement.append(host);
 
+  const LOADING_HINTS = [
+    '▸ Reading element context...',
+    '▸ Analyzing DOM structure...',
+    '▸ Reasoning about the change...',
+    '▸ Building a plan...',
+    '▸ Mapping component tree...',
+    '▸ Extracting attributes...',
+    '▸ Thinking through edge cases...',
+    '▸ Preparing edit context...',
+    '▸ Bundling element data...',
+    '▸ Checking surrounding code...',
+    '▸ Generating prompt...',
+    '▸ Connecting to agent...',
+  ];
+
   const marks = new Map<number, HTMLElement>();
   const pendingEvents = new Map<string, RunEvent[]>();
   let currentRunId: string | null = null;
@@ -370,6 +500,8 @@ export function mountOverlay(handlers: OverlayHandlers): Overlay {
   let terminalOpen = false;
   let runStartedAt = 0;
   let elapsedTimer: ReturnType<typeof setInterval> | null = null;
+  let hintTimer: ReturnType<typeof setInterval> | null = null;
+  let hintIdx = 0;
 
   const backdrop = el('button', 'cs-backdrop');
   backdrop.type = 'button';
@@ -380,17 +512,24 @@ export function mountOverlay(handlers: OverlayHandlers): Overlay {
 
   const head = el('div', 'cs-head');
   const titleWrap = el('div', 'cs-title-wrap');
+  const brandRow = el('div', 'cs-brand');
+  const brandIcon = el('div', 'cs-brand-icon');
+  brandIcon.innerHTML = `<svg viewBox="0 0 24 24" fill="none" stroke="white" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"><path d="M4 4l7.07 17 2.51-7.39L21 11.07z"/></svg>`;
   const title = el('span', 'cs-title');
-  title.textContent = 'ClickSmith';
+  title.innerHTML = 'Click<span>Smith</span>';
+  brandRow.append(brandIcon, title);
   const subtitle = el('div', 'cs-subtitle');
   subtitle.textContent = 'Edit the selected UI element';
-  titleWrap.append(title, subtitle);
+  titleWrap.append(brandRow, subtitle);
 
-  const statusBadge = el('span', 'cs-badge');
+  const statusBadge = el('span', 'cs-badge offline');
+  const statusDot = el('span', 'cs-dot');
+  const statusText = document.createTextNode('Not connected');
+  statusBadge.append(statusDot, statusText);
   const closeBtn = document.createElement('button');
   closeBtn.className = 'cs-close';
   closeBtn.type = 'button';
-  closeBtn.textContent = 'x';
+  closeBtn.textContent = '×';
   closeBtn.title = 'Close';
   closeBtn.setAttribute('aria-label', 'Close ClickSmith');
   const headActions = el('div', 'cs-head-actions');
@@ -423,7 +562,8 @@ export function mountOverlay(handlers: OverlayHandlers): Overlay {
   const stageDetail = el('div', 'cs-stage-detail');
   const elapsedEl = el('span', 'cs-elapsed');
   stageMeta.append(stageDetail, elapsedEl);
-  stageCopy.append(stageTitle, stageMeta);
+  const hintEl = el('div', 'cs-hint');
+  stageCopy.append(stageTitle, stageMeta, hintEl);
   stage.append(spinner, stageCopy);
 
   const terminalBar = el('div', 'cs-terminal-bar');
@@ -488,6 +628,7 @@ export function mountOverlay(handlers: OverlayHandlers): Overlay {
 
   function hide(): void {
     visible = false;
+    stopHints();
     syncVisibility();
   }
 
@@ -527,6 +668,28 @@ export function mountOverlay(handlers: OverlayHandlers): Overlay {
     stageTitle.textContent = titleText;
     stageDetail.textContent = detailText;
     updateElapsed();
+    if (spinning) startHints();
+    else stopHints();
+  }
+
+  function startHints(): void {
+    hintIdx = Math.floor(Math.random() * LOADING_HINTS.length);
+    hintEl.textContent = LOADING_HINTS[hintIdx];
+    hintEl.classList.add('visible');
+    if (hintTimer) clearInterval(hintTimer);
+    hintTimer = setInterval(() => {
+      hintEl.classList.remove('visible');
+      setTimeout(() => {
+        hintIdx = (hintIdx + 1) % LOADING_HINTS.length;
+        hintEl.textContent = LOADING_HINTS[hintIdx];
+        hintEl.classList.add('visible');
+      }, 360);
+    }, 2000);
+  }
+
+  function stopHints(): void {
+    if (hintTimer) { clearInterval(hintTimer); hintTimer = null; }
+    hintEl.classList.remove('visible');
   }
 
   function appendTerminal(chunk: string): void {
@@ -547,11 +710,20 @@ export function mountOverlay(handlers: OverlayHandlers): Overlay {
         : 'Terminal hidden by default';
   }
 
+  function clearAllMarks(): void {
+    for (const row of marks.values()) row.remove();
+    marks.clear();
+    refreshSubmit();
+    statusLine.textContent = 'Alt+Click another element to select it.';
+  }
+
   function prepareRunUi(): void {
     runPanel.style.display = 'flex';
     logEl.textContent = '';
     copyLogsBtn.disabled = true;
     setTerminalOpen(false);
+    stage.classList.remove('is-done', 'is-error');
+    runStartedAt = 0;
   }
 
   function startElapsedTimer(): void {
@@ -591,7 +763,6 @@ export function mountOverlay(handlers: OverlayHandlers): Overlay {
       case 'agent-started':
         stopElapsedTimer();
         setStage(`Handed off to ${event.agentId}`, 'Agent is running in your editor.', false);
-        setTimeout(hide, 1500);
         break;
       case 'agent-log':
         appendTerminal(event.chunk);
@@ -603,18 +774,22 @@ export function mountOverlay(handlers: OverlayHandlers): Overlay {
         break;
       case 'agent-done':
         stopElapsedTimer();
+        stage.classList.add('is-done');
         setStage('Agent finished', 'Review the changed files in your editor.', false);
-        refreshSubmit();
+        clearAllMarks();
         break;
       case 'agent-error':
         stopElapsedTimer();
+        stage.classList.add('is-error');
         setStage('Agent error', event.message, false);
-        refreshSubmit();
+        clearAllMarks();
         break;
       case 'apply-started':
+        stage.classList.remove('is-done', 'is-error');
         setStage('Applying changes', '', true);
         break;
       case 'apply-done':
+        stage.classList.add('is-done');
         setStage(
           'Changes applied',
           event.commit ? `Commit ${event.commit.slice(0, 8)} created.` : 'No commit was created.',
@@ -622,6 +797,7 @@ export function mountOverlay(handlers: OverlayHandlers): Overlay {
         );
         break;
       case 'apply-error':
+        stage.classList.add('is-error');
         setStage('Apply failed', event.message, false);
         break;
     }
@@ -657,9 +833,10 @@ export function mountOverlay(handlers: OverlayHandlers): Overlay {
     },
     setState(state) {
       const connected = state.daemonConnected;
-      statusBadge.innerHTML = `<span class="cs-dot ${connected ? 'on' : ''}"></span>${
-        connected ? 'Daemon ready' : 'Daemon offline'
-      }${state.agentId ? ` | ${state.agentId}` : ''}`;
+      statusBadge.className = `cs-badge ${connected ? 'online' : 'offline'}`;
+      const label = connected ? 'ClickSmith ready' : 'Not connected';
+      const suffix = state.agentId ? ` · ${state.agentId}` : '';
+      statusBadge.replaceChildren(statusDot, document.createTextNode(label + suffix));
     },
     startRun(runId) {
       currentRunId = runId;

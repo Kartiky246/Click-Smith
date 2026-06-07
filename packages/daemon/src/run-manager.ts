@@ -554,6 +554,7 @@ function formatNear(element: CapturedElement): string {
 }
 
 function buildFirstActions(bundle: CaptureBundle, bundlePath: string): string[] {
+  // Source locators are most precise — jump straight to the exact line.
   const sourceActions = bundle.elements
     .filter((element) => element.locator.kind === 'source')
     .map((element) => {
@@ -565,13 +566,25 @@ function buildFirstActions(bundle: CaptureBundle, bundlePath: string): string[] 
     .filter(Boolean);
   if (sourceActions.length) return sourceActions.slice(0, 2);
 
+  // Attr locators: grep the full attr="value" pattern instead of the bare value.
+  // e.g. data-qa="page-header-icon" matches ~3 files vs 70+ for just "page-header-icon".
+  const attrElements = bundle.elements.filter((e) => e.locator.kind === 'attr');
+  if (attrElements.length) {
+    return attrElements.slice(0, 2).map((element) => {
+      if (element.locator.kind !== 'attr') return '';
+      const pattern = `${element.locator.attr}="${element.locator.value}"`;
+      return `git grep -n ${shellQuote(pattern)} -- . 2>/dev/null | head -20`;
+    }).filter(Boolean);
+  }
+
+  // Token-based fallback — cap output to avoid bloated context windows.
   const tokens = collectBundleSearchTokens(bundle);
   const actions: string[] = [];
   if (tokens.length) {
-    actions.push(`git grep -n ${tokens.slice(0, 2).map((token) => `-e ${shellQuote(token)}`).join(' ')} -- . 2>/dev/null || true`);
+    actions.push(`git grep -n ${tokens.slice(0, 2).map((t) => `-e ${shellQuote(t)}`).join(' ')} -- . 2>/dev/null | head -30`);
   }
   if (tokens.length > 2) {
-    actions.push(`git grep -n ${tokens.slice(2, 4).map((token) => `-e ${shellQuote(token)}`).join(' ')} -- . 2>/dev/null || true`);
+    actions.push(`git grep -n ${tokens.slice(2, 4).map((t) => `-e ${shellQuote(t)}`).join(' ')} -- . 2>/dev/null | head -30`);
   }
   if (actions.length) return actions;
 
