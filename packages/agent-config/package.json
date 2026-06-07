@@ -1,6 +1,6 @@
 {
   "name": "@clicksmith/agent-config",
-  "version": "0.1.4",
+  "version": "0.1.5",
   "description": "Config-driven agent adapters and the shared ClickSmith instruction template, rendered to native files for Claude, Cursor, Codex, Antigravity, and generic agents.",
   "license": "MIT",
   "type": "module",

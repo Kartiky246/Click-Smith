@@ -26,9 +26,12 @@ export function renderInstructionBody(options: InstructionTemplateOptions = {}):
 
   return `# ClickSmith
 
-**The user message already contains the exact file location and the change to make.**
+**The user message already contains the exact file path and the change to make.**
 
-Execute ONLY the "Immediate actions" listed in the user message. Do NOT read AGENTS.md, CLAUDE.md, .cursor/rules, guidelines, skills, or any other project docs. Do NOT use MCP tools, list resources, or explore the repo. Run the listed grep (≤ 2), edit the one matching file, done.${
-    attrs.length ? `\n\nProject stable attrs: ${attrs.join(', ')}.` : ''
+- The target file is already identified — skip repo-wide search.
+- Run the listed grep(s) (≤ 2) to locate the exact line, then edit only that file.
+- Apply this project's existing conventions and design rules to the edit.
+- Do not open unrelated files, packages, or directories.${
+    attrs.length ? `\n- Project stable attrs: ${attrs.join(', ')}.` : ''
   }`;
 }
