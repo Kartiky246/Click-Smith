@@ -82,7 +82,12 @@ const STYLE = `
   padding: 13px 16px 11px;
   border-bottom: 1px solid #2e2e2e;
   background: #242424;
+  cursor: grab;
+  user-select: none;
 }
+
+.cs-head.dragging { cursor: grabbing; }
+.cs-head button { cursor: pointer; }
 
 .cs-title-wrap { min-width: 0; }
 
@@ -616,6 +621,38 @@ export function mountOverlay(handlers: OverlayHandlers): Overlay {
     true,
   );
 
+  // ── Drag to reposition ────────────────────────────────────────────────────────
+  let isDragging = false;
+  let dragOffsetX = 0;
+  let dragOffsetY = 0;
+
+  head.addEventListener('mousedown', (e) => {
+    if ((e.target as Element).closest('button')) return;
+    isDragging = true;
+    const rect = root.getBoundingClientRect();
+    dragOffsetX = e.clientX - rect.left;
+    dragOffsetY = e.clientY - rect.top;
+    head.classList.add('dragging');
+    e.preventDefault();
+  });
+
+  document.addEventListener('mousemove', (e) => {
+    if (!isDragging) return;
+    const gap = 8;
+    const x = clamp(e.clientX - dragOffsetX, gap, window.innerWidth - root.offsetWidth - gap);
+    const y = clamp(e.clientY - dragOffsetY, gap, window.innerHeight - root.offsetHeight - gap);
+    root.style.left = `${x}px`;
+    root.style.top = `${y}px`;
+    root.style.right = 'auto';
+    root.style.bottom = 'auto';
+  });
+
+  document.addEventListener('mouseup', () => {
+    if (!isDragging) return;
+    isDragging = false;
+    head.classList.remove('dragging');
+  });
+
   function refreshSubmit(): void {
     submitBtn.disabled = marks.size === 0 || textarea.value.trim().length === 0;
   }
@@ -815,7 +852,7 @@ export function mountOverlay(handlers: OverlayHandlers): Overlay {
 
   return {
     addMark(element, route, anchor) {
-      if (anchor) positionNear(anchor);
+      if (anchor && !visible) positionNear(anchor);
       const row = el('div', 'cs-mark');
       const id = el('span', 'cs-id');
       id.textContent = `#${element.id}`;
