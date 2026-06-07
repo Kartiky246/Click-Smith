@@ -629,6 +629,17 @@ export function mountOverlay(handlers: OverlayHandlers): Overlay {
   function hide(): void {
     visible = false;
     stopHints();
+    // If the run has completed, fully reset so the next alt+click opens a clean modal.
+    if (stage.classList.contains('is-done') || stage.classList.contains('is-error')) {
+      runPanel.style.display = 'none';
+      stage.classList.remove('is-done', 'is-error', 'is-spinning');
+      logEl.textContent = '';
+      copyLogsBtn.disabled = true;
+      setTerminalOpen(false);
+      stopElapsedTimer();
+      runStartedAt = 0;
+      currentRunId = null;
+    }
     syncVisibility();
   }
 
