@@ -761,7 +761,6 @@ export function mountOverlay(handlers: OverlayHandlers): Overlay {
   function handleRunEvent(event: RunEvent): void {
     switch (event.type) {
       case 'agent-started':
-        stopElapsedTimer();
         setStage(`Handed off to ${event.agentId}`, 'Agent is running in your editor.', false);
         break;
       case 'agent-log':
