@@ -11,7 +11,12 @@ export const DEFAULT_AGENTS: AgentConfig[] = [
     id: 'claude',
     label: 'Claude Code',
     command: 'claude',
-    args: ['-p', '{agentPrompt}', '--append-system-prompt', '@{instructionFile}'],
+    args: [
+      '-p', '{agentPrompt}',
+      '--dangerously-skip-permissions',
+      '--verbose',
+      '--append-system-prompt', '@{instructionFile}',
+    ],
     detect: { anyOf: ['claude'] },
     instructions: { target: 'claude', file: 'CLAUDE.md' },
     mcp: { register: 'claude' },
