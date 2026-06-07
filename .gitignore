@@ -22,3 +22,8 @@ coverage/
 # WXT extension build output
 apps/extension/.output/
 apps/extension/.wxt/
+# Added by code-review-graph
+.code-review-graph/
+.claude/
+.mcp.json
+CLAUDE/

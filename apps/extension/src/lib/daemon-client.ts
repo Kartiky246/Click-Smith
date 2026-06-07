@@ -5,6 +5,8 @@ import {
   type CaptureRequest,
   type CaptureResponse,
   type HealthResponse,
+  type RunRequest,
+  type RunResponse,
   type ServerEvent,
   type SubmitRequest,
   type SubmitResponse,
@@ -54,6 +56,10 @@ export class DaemonClient {
 
   async submit(req: SubmitRequest): Promise<SubmitResponse> {
     return this.json<SubmitResponse>('POST', '/submit', req);
+  }
+
+  async run(req: RunRequest): Promise<RunResponse> {
+    return this.json<RunResponse>('POST', '/run', req);
   }
 
   watchRun(runId: string): void {

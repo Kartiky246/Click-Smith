@@ -40,6 +40,22 @@ export interface SubmitResponse {
   bundle: CaptureBundle;
 }
 
+/** One-shot fast path: send all captured elements + prompt in a single request. */
+export const RunRequestSchema = z.object({
+  app: AppContextSchema,
+  elements: z.array(CapturedElementInputSchema).min(1),
+  prompt: z.string().min(1),
+  execution: ExecutionOptionsSchema.partial().optional(),
+  enrichment: EnrichmentSchema.optional(),
+});
+export type RunRequest = z.infer<typeof RunRequestSchema>;
+
+export interface RunResponse {
+  runId: string;
+  sessionId: string;
+  bundle: CaptureBundle;
+}
+
 export interface ApplyResponse {
   applied: boolean;
   commit?: string;

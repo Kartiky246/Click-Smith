@@ -10,6 +10,8 @@ import {
   type CaptureResponse,
   type HealthResponse,
   type RemoveElementResponse,
+  type RunRequest,
+  type RunResponse,
   type Session,
   type SubmitRequest,
   type SubmitResponse,
@@ -109,6 +111,28 @@ export class DaemonService {
 
     const { run } = await this.runs.createRun(bundle);
     return { runId: run.runId, bundle };
+  }
+
+  /** Fast path: create a run directly from elements + prompt, no prior session needed. */
+  async run(req: RunRequest): Promise<RunResponse> {
+    const now = new Date();
+    const execution = ExecutionOptionsSchema.parse(req.execution ?? {});
+
+    let session = createSession({ app: req.app, now, ttlMs: this.config.ttlMs });
+    for (const elementInput of req.elements) {
+      const { session: next } = appendElement(session, elementInput, now);
+      session = next;
+    }
+    await this.store.saveSession({ ...session, status: 'submitted', prompt: req.prompt });
+
+    const bundle = finalizeSession(session, {
+      prompt: req.prompt,
+      execution,
+      ...(req.enrichment ? { enrichment: req.enrichment } : {}),
+    });
+
+    const { run } = await this.runs.createRun(bundle);
+    return { runId: run.runId, sessionId: session.id, bundle };
   }
 
   async apply(runId: string): Promise<ApplyResponse> {

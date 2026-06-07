@@ -2,6 +2,7 @@ import Fastify, { type FastifyInstance } from 'fastify';
 import websocket from '@fastify/websocket';
 import {
   CaptureRequestSchema,
+  RunRequestSchema,
   SubmitRequestSchema,
   type ClientMessage,
   type ServerEvent,
@@ -39,6 +40,18 @@ export async function buildServer(service: DaemonService): Promise<FastifyInstan
     const parsed = CaptureRequestSchema.safeParse(req.body);
     if (!parsed.success) return reply.code(400).send({ error: parsed.error.message });
     return service.capture(parsed.data);
+  });
+
+  app.post('/run', async (req, reply) => {
+    const parsed = RunRequestSchema.safeParse(req.body);
+    if (!parsed.success) return reply.code(400).send({ error: parsed.error.message });
+    try {
+      return await service.run(parsed.data);
+    } catch (err) {
+      if (err instanceof RefusalError)
+        return reply.code(409).send({ error: err.message, code: err.code });
+      throw err;
+    }
   });
 
   app.post('/submit', async (req, reply) => {

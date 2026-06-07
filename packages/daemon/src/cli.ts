@@ -32,9 +32,9 @@ async function runDaemon(args: string[]): Promise<void> {
 
   await app.listen({ host: config.host, port: config.port });
   config.logger.info(`daemon listening on http://${config.host}:${config.port}`);
-  config.logger.info(`storage: ${config.storageRoot}`);
-  config.logger.info(`repo: ${config.repoRoot ?? '(none — using OS cache)'}`);
-  config.logger.info(`agents: ${config.agents.agents.map((a) => a.id).join(', ')}`);
+  config.logger.debug(`storage: ${config.storageRoot}`);
+  config.logger.debug(`repo: ${config.repoRoot ?? '(none — using OS cache)'}`);
+  config.logger.debug(`agents: ${config.agents.agents.map((a) => a.id).join(', ')}`);
 
   const shutdown = async () => {
     config.logger.info('shutting down');

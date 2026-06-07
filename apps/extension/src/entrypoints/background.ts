@@ -69,6 +69,26 @@ export default defineBackground(() => {
           });
       case 'remove-element':
         return client.removeElement(msg.sessionId, msg.elementId);
+      case 'run':
+        return client
+          .run({
+            app: msg.app,
+            elements: msg.elements,
+            prompt: msg.prompt,
+            execution: {
+              ...(state.agentId ? { agentId: state.agentId } : {}),
+              ...(msg.execution ?? {}),
+              mode: 'edit',
+              isolation: 'inplace',
+              autoApply: false,
+            },
+          })
+          .then((result) => {
+            rememberSessionTab(result.sessionId, sender);
+            runTabs.set(result.runId, tabIdFrom(sender) ?? 0);
+            client.watchRun(result.runId);
+            return result;
+          });
       case 'submit':
         return client
           .submit({

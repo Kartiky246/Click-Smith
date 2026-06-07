@@ -1,4 +1,4 @@
-import { mkdir } from 'node:fs/promises';
+import { mkdir, writeFile } from 'node:fs/promises';
 import { join } from 'node:path';
 import {
   configToAdapter,
@@ -53,6 +53,7 @@ interface AvailabilityCacheEntry {
 
 export class RunManager {
   private readonly availabilityCache = new Map<string, AvailabilityCacheEntry>();
+  private _instructionFile: string | null = null;
 
   constructor(private readonly deps: RunManagerDeps) {}
 
@@ -107,7 +108,10 @@ export class RunManager {
       );
     }
 
-    const enriched = await enrichBundle(input, this.deps.enrichment);
+    const enriched = await Promise.race([
+      enrichBundle(input, this.deps.enrichment),
+      new Promise<CaptureBundle>((resolve) => setTimeout(() => resolve(input), 300)),
+    ]);
     await store.saveBundle(runId, enriched);
 
     const run: RunRecord = {
@@ -216,7 +220,7 @@ export class RunManager {
         ...(rawSpec.env ?? {}),
       },
     };
-    logger.info(`run ${run.runId}: ${spec.command} ${spec.args.join(' ')}`);
+    logger.debug(`run ${run.runId}: ${spec.command} ${spec.args.slice(0, 2).join(' ')}`);
 
     const logBuffer = createLogBuffer(
       (chunk) => store.appendLog(run.runId, chunk),
@@ -269,7 +273,7 @@ export class RunManager {
     bus.emit({ type: 'agent-done', runId: run.runId, exitCode: result.exitCode });
 
     if (bundle.execution.autoApply) {
-      logger.info(`run ${run.runId}: autoApply enabled, applying`);
+      logger.debug(`run ${run.runId}: autoApply`);
       await this.apply(run.runId);
     }
   }
@@ -389,14 +393,17 @@ export class RunManager {
   }
 
   /**
-   * Resolve the instruction file passed to the agent. Use a run-local compact
-   * file so ClickSmith runs do not ingest a project's full AGENTS/CLAUDE/rules
-   * corpus before the targeted UI lookup has even started.
+   * Resolve the instruction file passed to the agent. Generated once per daemon
+   * session (content only varies by port) and reused across all runs.
    */
-  private async resolveInstructionFile(run: RunRecord): Promise<string> {
+  private async resolveInstructionFile(_run: RunRecord): Promise<string> {
+    if (this._instructionFile) return this._instructionFile;
     const { config, store } = this.deps;
     const body = renderInstructionBody({ daemonPort: config.port });
-    return store.writeArtifact(run.runId, 'AGENT_INSTRUCTIONS.md', body);
+    const path = join(store.paths.root, 'AGENT_INSTRUCTIONS.md');
+    await writeFile(path, body, 'utf-8');
+    this._instructionFile = path;
+    return path;
   }
 }
 
@@ -483,7 +490,6 @@ function buildAgentPrompt(input: {
     `Request: ${truncateLine(bundle.prompt, 300)}`,
     `Route: ${truncateLine(bundle.app.route, 160)}`,
     `Cwd: ${run.sandbox?.path ?? run.repoRoot ?? '(none)'}`,
-    `Isolation: ${run.isolation}`,
     '',
     'Targets:',
     targets,

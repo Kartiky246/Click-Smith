@@ -2,6 +2,7 @@ import type {
   CaptureResponse,
   CapturedElementInput,
   ExecutionOptions,
+  RunResponse,
   ServerEvent,
   SubmitResponse,
 } from '@clicksmith/core';
@@ -16,6 +17,7 @@ export type ContentToBackground =
   | { type: 'capture'; app: AppRef; element: CapturedElementInput; sessionId?: string }
   | { type: 'remove-element'; sessionId: string; elementId: number }
   | { type: 'submit'; sessionId: string; prompt: string; execution?: Partial<ExecutionOptions> }
+  | { type: 'run'; app: AppRef; elements: CapturedElementInput[]; prompt: string; execution?: Partial<ExecutionOptions> }
   | { type: 'apply'; runId: string }
   | { type: 'get-state' }
   | { type: 'set-ai-mode'; enabled: boolean }
@@ -43,3 +45,4 @@ export type BackgroundEvent = { type: 'daemon-event'; event: ServerEvent } | { t
 
 export type CaptureResult = CaptureResponse;
 export type SubmitResult = SubmitResponse;
+export type RunResult = RunResponse;

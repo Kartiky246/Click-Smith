@@ -1,8 +1,8 @@
 import { defineContentScript } from 'wxt/sandbox';
 import { browser } from 'wxt/browser';
-import type { CapturedElement, ServerEvent } from '@clicksmith/core';
+import type { CapturedElement, CapturedElementInput, ServerEvent } from '@clicksmith/core';
 import { captureElement } from '../lib/locator';
-import type { BackgroundResponse, ContentToBackground, ExtensionState } from '../lib/messages';
+import type { AppRef, BackgroundResponse, ContentToBackground, ExtensionState } from '../lib/messages';
 import { mountOverlay, type Overlay, type OverlayAnchor } from '../lib/overlay';
 
 export default defineContentScript({
@@ -16,20 +16,28 @@ export default defineContentScript({
       daemonConnected: false,
     }));
 
-    let sessionId: string | undefined;
+    // Local element buffer — no HTTP round-trip on Alt+Click.
+    // A single POST /run is sent only when the user clicks Submit.
+    let elementBuffer: { id: number; input: CapturedElementInput }[] = [];
+    let capturedApp: AppRef | null = null;
+    let nextLocalId = 1;
+
     const overlay: Overlay = mountOverlay({
-      onRemove: async (id) => {
-        if (!sessionId) return;
-        await send({ type: 'remove-element', sessionId, elementId: id });
+      onRemove: (id) => {
+        elementBuffer = elementBuffer.filter((e) => e.id !== id);
         overlay.removeMark(id);
       },
       onSubmit: async (prompt, execution) => {
-        if (!sessionId) return;
+        if (!capturedApp || elementBuffer.length === 0) return;
         overlay.toast('Submitting request to agent...');
         try {
-          const result = (await send({ type: 'submit', sessionId, prompt, execution })) as {
-            runId: string;
-          };
+          const result = (await send({
+            type: 'run',
+            app: capturedApp,
+            elements: elementBuffer.map((e) => e.input),
+            prompt,
+            execution,
+          })) as { runId: string };
           overlay.startRun(result.runId);
         } catch (err) {
           overlay.toast(`Submit failed: ${errorMessage(err)}`);
@@ -39,7 +47,7 @@ export default defineContentScript({
 
     overlay.setState(state);
 
-    // Alt+Click capture. ClickSmith is always ready; there is no separate AI mode.
+    // Alt+Click capture — immediate, no network call.
     document.addEventListener(
       'click',
       (ev) => {
@@ -48,31 +56,27 @@ export default defineContentScript({
         if (!target || overlay.contains(target)) return;
         ev.preventDefault();
         ev.stopPropagation();
-        void capture(target);
+        captureLocal(target);
       },
       true,
     );
 
-    async function capture(target: Element): Promise<void> {
+    function captureLocal(target: Element): void {
       const anchor = anchorFrom(target);
-      const element = captureElement(target);
-      const app = {
+      const input = captureElement(target);
+      const app: AppRef = {
         url: location.href,
         route: location.pathname || '/',
         page: document.title || undefined,
       };
-      try {
-        const res = (await send({
-          type: 'capture',
-          app,
-          element,
-          ...(sessionId ? { sessionId } : {}),
-        })) as { sessionId: string; element: CapturedElement };
-        sessionId = res.sessionId;
-        overlay.addMark(res.element, app.route, anchor);
-      } catch (err) {
-        overlay.toast(`Capture failed: ${errorMessage(err)}`);
-      }
+
+      if (!capturedApp) capturedApp = app;
+
+      const id = nextLocalId++;
+      elementBuffer.push({ id, input });
+
+      const fullElement: CapturedElement = { id, ...input };
+      overlay.addMark(fullElement, app.route, anchor);
     }
 
     // React to daemon/run events pushed by the background worker.
