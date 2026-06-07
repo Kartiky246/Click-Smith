@@ -68,10 +68,13 @@ export async function planInstall(
     });
   }
 
-  // 2. agents.config.json — keep this as user overrides only. The daemon ships
-  // built-in defaults, so copying them into projects would freeze old commands.
+  // 2. agents.config.json — keep user-defined agents only. The daemon ships
+  // built-in defaults, so any entry whose ID matches a built-in is stripped so
+  // the daemon's latest default (with correct placeholders) takes over. Custom
+  // agent IDs are preserved untouched.
   const configPath = join('.clicksmith', 'agents.config.json');
   const existingConfigRaw = await readText(join(root, configPath));
+  const builtinIds = new Set(DEFAULT_AGENTS_CONFIG.agents.map((a) => a.id));
   if (existingConfigRaw == null) {
     changes.push({
       path: configPath,
@@ -84,19 +87,33 @@ export async function planInstall(
     });
   } else {
     try {
-      const parsed = parseAgentsConfig(JSON.parse(existingConfigRaw));
+      const doc = JSON.parse(existingConfigRaw);
+      const parsed = parseAgentsConfig(doc);
       if (!parsed.ok) {
         messages.push('Existing agents.config.json was invalid; left it untouched.');
+        changes.push({ path: configPath, action: 'skip', contents: existingConfigRaw });
+      } else {
+        const customAgents = (parsed.config.agents ?? []).filter((a) => !builtinIds.has(a.id));
+        const hadBuiltins = customAgents.length < (parsed.config.agents ?? []).length;
+        const updated = { ...doc, agents: customAgents };
+        changes.push({
+          path: configPath,
+          action: hadBuiltins ? 'merge' : 'skip',
+          contents: `${JSON.stringify(updated, null, 2)}\n`,
+          reason: hadBuiltins
+            ? 'stripped built-in agent entries so daemon defaults take over'
+            : 'no built-in entries found; preserved as-is',
+        });
+        if (hadBuiltins) {
+          messages.push(
+            'agents.config.json: removed built-in agent entries — daemon will use its latest defaults.',
+          );
+        }
       }
     } catch {
       messages.push('Existing agents.config.json was invalid JSON; left it untouched.');
+      changes.push({ path: configPath, action: 'skip', contents: existingConfigRaw });
     }
-    changes.push({
-      path: configPath,
-      action: 'skip',
-      contents: existingConfigRaw,
-      reason: 'existing user agent overrides preserved',
-    });
   }
 
   // 3. MCP registration for the daemon's stdio server.
