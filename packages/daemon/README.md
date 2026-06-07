@@ -21,19 +21,20 @@ clicksmith version
 
 ## HTTP surface
 
-| Method & path | Purpose |
-| --- | --- |
-| `GET /health` | Liveness + daemon metadata. |
-| `POST /capture` | Create/append the active session for an app/route. |
-| `POST /submit` | Finalize a bundle and start a run. `409` if the tree is dirty. |
-| `POST /apply/:runId` | Merge the sandbox back; reports conflicts. |
-| `GET /session/:id` | Read a session. |
-| `DELETE /element/:sessionId/:elementId` | Remove a captured mark. |
+| Method & path                           | Purpose                                                        |
+| --------------------------------------- | -------------------------------------------------------------- |
+| `GET /health`                           | Liveness + daemon metadata.                                    |
+| `POST /capture`                         | Create/append the active session for an app/route.             |
+| `POST /submit`                          | Finalize a bundle and start a run. `409` if the tree is dirty. |
+| `POST /apply/:runId`                    | Merge the sandbox back; reports conflicts.                     |
+| `GET /session/:id`                      | Read a session.                                                |
+| `DELETE /element/:sessionId/:elementId` | Remove a captured mark.                                        |
 
 WebSocket (`/ws`) streams: `capture-ack`, `element-removed`, `agent-started`,
 `agent-log`, `plan-ready`, `agent-done`, `agent-error`, `apply-started`,
-`apply-done`, `apply-error`. Send `{ "type": "subscribe" }` to replay buffered
-events on reconnect.
+`apply-done`, `apply-error`. Send `{ "type": "subscribe", "runId": "..." }`
+or `{ "type": "subscribe", "sessionId": "..." }` to replay buffered events on
+reconnect without flooding the client with unrelated historical logs.
 
 ## Safety model
 

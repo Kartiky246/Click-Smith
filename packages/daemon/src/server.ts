@@ -9,6 +9,8 @@ import {
 import { type DaemonService, NotFoundError } from './daemon-service.js';
 import { RefusalError } from './run-manager.js';
 
+type SubscribeMessage = Extract<ClientMessage, { type: 'subscribe' }> & { runId?: string };
+
 /**
  * Build the Fastify app exposing ClickSmith's HTTP + WebSocket surface on top
  * of a {@link DaemonService}. Binds loopback only; CORS is opened for localhost
@@ -46,7 +48,8 @@ export async function buildServer(service: DaemonService): Promise<FastifyInstan
       return await service.submit(parsed.data);
     } catch (err) {
       if (err instanceof NotFoundError) return reply.code(404).send({ error: err.message });
-      if (err instanceof RefusalError) return reply.code(409).send({ error: err.message, code: err.code });
+      if (err instanceof RefusalError)
+        return reply.code(409).send({ error: err.message, code: err.code });
       throw err;
     }
   });
@@ -90,8 +93,12 @@ export async function buildServer(service: DaemonService): Promise<FastifyInstan
       }
       if (msg.type === 'ping') socket.send(JSON.stringify({ type: 'pong' }));
       else if (msg.type === 'subscribe') {
-        // Replay buffered events so a reconnecting client catches up.
-        for (const event of service.bus.replay(msg.sessionId)) send(event);
+        // Replay only the run/session the client asks for. Unscoped replay can
+        // flood reconnecting extension workers with unrelated historical logs.
+        const sub = msg as SubscribeMessage;
+        for (const event of service.bus.replay({ runId: sub.runId, sessionId: sub.sessionId })) {
+          send(event);
+        }
       }
     });
 

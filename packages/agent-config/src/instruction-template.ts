@@ -18,68 +18,43 @@ export const DEFAULT_MCP_TOOLS = [
 
 /**
  * The single, shared instruction body. Every native renderer wraps this exact
- * text — so Claude, Cursor, Codex, Antigravity and generic agents all learn the
- * same three things: the `#N` reference system, locator priority, and the
- * plan/worktree safety contract.
+ * text so Claude, Cursor, Codex, Antigravity and generic agents all receive the
+ * same compact fast-path contract.
  */
 export function renderInstructionBody(options: InstructionTemplateOptions = {}): string {
   const tools = options.mcpTools ?? DEFAULT_MCP_TOOLS;
   const attrs = options.stableAttrs ?? [];
-  const locatorList = LOCATOR_PRIORITY.map((kind, i) => `${i + 1}. **${kind}**`).join(' → ');
+  const locatorList = LOCATOR_PRIORITY.map((kind, i) => `${i + 1}. ${kind}`).join(' -> ');
 
-  return `# ClickSmith — working with captured UI requests
+  return `# ClickSmith fast UI edits
 
-You are being asked to change UI elements that a human pointed at in their browser
-with ClickSmith. Each request arrives as a **capture bundle** (a JSON file whose
-path is provided to you) describing one or more elements and a free-text prompt.
+ClickSmith sends a small browser-capture summary for UI changes. The prompt
+already contains all context needed — do NOT explore the repo broadly.
 
-## 1. The \`#N\` reference system
+Fast path (do exactly these steps, in order):
 
-Elements are numbered \`#1\`, \`#2\`, … in the order they were captured. The user's
-prompt refers to them by number, e.g. _"make #1 match #2's style"_. Always resolve
-\`#N\` to \`elements[]\` entries with the matching \`id\` field. Never guess which
-element is meant — read the bundle.
+1. Read the target summary in the prompt. \`#N\` refers to the captured element.
+2. Locator order: ${locatorList}.
+   - **source**: open only that file at the given line. No grep needed.
+   - **attr**: \`git grep -n -e 'value' -- .\` for the stable attribute${attrs.length ? ` (project attrs: ${attrs.join(', ')})` : ''}.
+   - **behavioral**: grep for the accessible name or label text.
+   - **dom**: grep for searchTokens or nearby text.
+3. Run the grep commands given in the prompt. Stop after at most two searches.
+4. Edit the smallest file that contains the component usage.
 
-## 2. Locator priority
+Do NOT:
+- Read AGENTS.md, CLAUDE.md, .cursor/rules, guidelines, skills, or any docs.
+- Attempt to connect to an HTTP server or daemon.
+- Edit shared sprite/icon definitions unless the request explicitly asks.
+- Explore the repo broadly before doing the targeted grep.
 
-Each element carries a \`locator\`. Trust them in this exact order, best first:
-
-${locatorList}
-
-- **source** gives an exact \`file:line\` (injected in dev by @clicksmith/unplugin) —
-  edit there directly.
-- **attr** is a stable attribute${attrs.length ? ` (this project uses: ${attrs.map((a) => `\`${a}\``).join(', ')})` : ''}; grep for it to find the JSX/template.
-- **behavioral** is an ARIA role + accessible name; search for the visible text/label.
-- **dom** is a structural fallback; use \`el.text\`, \`el.attrs\`, and \`near\` context to
-  locate the component, and prefer adding a stable attribute while you're there.
-
-## 3. Plan / worktree safety (read carefully)
-
-ClickSmith runs you inside an **isolated git worktree** by default. The execution
-mode is in \`execution.mode\`:
-
-- **plan** (the default): produce a clear plan and, if helpful, a diff — but **do
-  not** assume your edits ship. The human reviews your plan/diff and explicitly
-  clicks **Apply**. Your job is to propose, precisely.
-- **edit**: you may modify files in the sandbox. They still do **not** reach the
-  user's main working tree until they click Apply.
-
-Never run destructive git commands, never push, and never touch files outside the
-sandbox working directory.
-
-## 4. Reading the request
-
-The bundle path is passed on the command line / via your harness. ${
+Keep edits minimal, non-destructive, and inside the current working directory.
+In worktree/branch isolation ClickSmith applies changes later; in inplace mode
+edits affect the working tree immediately.${
     tools.length
-      ? `You can also use these MCP tools (server \`clicksmith\`): ${tools
+      ? `\n\nMCP last resort only: if the targeted grep yields nothing, the \`clicksmith\` server exposes: ${tools
           .map((t) => `\`${t}\``)
-          .join(', ')}. Use \`get_latest_request\` to fetch the most recent submission, then \`get_element_by_id\` to resolve a specific \`#N\`.`
+          .join(', ')}.`
       : ''
-}
-
-Each element includes: \`locator\`, \`el\` (tag/text/role/label/attrs/icon hints),
-\`near\` (surrounding labels & headings), \`conditions\` (viewport/theme), and an
-optional \`screenshot\` thumbnail. Use \`near\` and \`app.route\` to disambiguate when
-multiple elements look similar.
-${options.daemonPort ? `\nThe ClickSmith daemon is at http://127.0.0.1:${options.daemonPort}.\n` : ''}`;
+}`;
 }

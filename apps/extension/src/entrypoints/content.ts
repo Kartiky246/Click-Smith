@@ -1,11 +1,6 @@
 import { defineContentScript } from 'wxt/sandbox';
 import { browser } from 'wxt/browser';
-import {
-  confirmationReasons,
-  type CapturedElement,
-  type ExecutionOptions,
-  type ServerEvent,
-} from '@clicksmith/core';
+import type { CapturedElement, ServerEvent } from '@clicksmith/core';
 import { captureElement } from '../lib/locator';
 import type { BackgroundResponse, ContentToBackground, ExtensionState } from '../lib/messages';
 import { mountOverlay, type Overlay, type OverlayAnchor } from '../lib/overlay';
@@ -16,7 +11,7 @@ export default defineContentScript({
   cssInjectionMode: 'ui',
   async main() {
     let state: ExtensionState = await send({ type: 'get-state' }).catch(() => ({
-      aiMode: false,
+      aiMode: true,
       agentId: null,
       daemonConnected: false,
     }));
@@ -30,13 +25,6 @@ export default defineContentScript({
       },
       onSubmit: async (prompt, execution) => {
         if (!sessionId) return;
-        const reasons = confirmationReasons(execution as ExecutionOptions);
-        if (
-          reasons.length &&
-          !window.confirm(`Confirm risky options?\n\n- ${reasons.join('\n- ')}`)
-        ) {
-          return;
-        }
         overlay.toast('Submitting request to agent...');
         try {
           const result = (await send({ type: 'submit', sessionId, prompt, execution })) as {
@@ -47,22 +35,15 @@ export default defineContentScript({
           overlay.toast(`Submit failed: ${errorMessage(err)}`);
         }
       },
-      onApply: async (runId) => {
-        try {
-          await send({ type: 'apply', runId });
-        } catch (err) {
-          overlay.toast(`Apply failed: ${errorMessage(err)}`);
-        }
-      },
     });
 
     overlay.setState(state);
 
-    // Alt+Click capture, only while AI Mode is enabled.
+    // Alt+Click capture. ClickSmith is always ready; there is no separate AI mode.
     document.addEventListener(
       'click',
       (ev) => {
-        if (!state.aiMode || !ev.altKey) return;
+        if (!ev.altKey) return;
         const target = ev.target as Element | null;
         if (!target || overlay.contains(target)) return;
         ev.preventDefault();

@@ -10,6 +10,8 @@ import {
   type SubmitResponse,
 } from '@clicksmith/core';
 
+type AgentLogEvent = Extract<ServerEvent, { type: 'agent-log' }>;
+
 export interface DaemonClientOptions {
   host?: string;
   port?: number;
@@ -26,6 +28,9 @@ export class DaemonClient {
   private readonly wsUrl: string;
   private ws: WebSocket | null = null;
   private reconnectTimer: ReturnType<typeof setTimeout> | null = null;
+  private readonly runSubscriptions = new Set<string>();
+  private readonly pendingLogs = new Map<string, AgentLogEvent>();
+  private logFlushTimer: ReturnType<typeof setTimeout> | null = null;
   private connected = false;
 
   constructor(private readonly options: DaemonClientOptions = {}) {
@@ -51,6 +56,11 @@ export class DaemonClient {
     return this.json<SubmitResponse>('POST', '/submit', req);
   }
 
+  watchRun(runId: string): void {
+    this.runSubscriptions.add(runId);
+    this.sendSubscribe(runId);
+  }
+
   async apply(runId: string): Promise<ApplyResponse> {
     return this.json<ApplyResponse>('POST', `/apply/${encodeURIComponent(runId)}`);
   }
@@ -61,7 +71,10 @@ export class DaemonClient {
 
   /** Open (or reopen) the event WebSocket, retrying on failure. */
   connect(): void {
-    if (this.ws && (this.ws.readyState === WebSocket.OPEN || this.ws.readyState === WebSocket.CONNECTING)) {
+    if (
+      this.ws &&
+      (this.ws.readyState === WebSocket.OPEN || this.ws.readyState === WebSocket.CONNECTING)
+    ) {
       return;
     }
     try {
@@ -72,12 +85,12 @@ export class DaemonClient {
     }
     this.ws.addEventListener('open', () => {
       this.setConnected(true);
-      this.ws?.send(JSON.stringify({ type: 'subscribe' }));
+      for (const runId of this.runSubscriptions) this.sendSubscribe(runId);
     });
     this.ws.addEventListener('message', (ev) => {
       try {
         const event = JSON.parse(typeof ev.data === 'string' ? ev.data : '') as ServerEvent;
-        if (event && 'type' in event) this.options.onEvent?.(event);
+        if (event && 'type' in event) this.handleEvent(event);
       } catch {
         /* ignore non-JSON frames (e.g. pong) */
       }
@@ -91,8 +104,46 @@ export class DaemonClient {
 
   dispose(): void {
     if (this.reconnectTimer) clearTimeout(this.reconnectTimer);
+    if (this.logFlushTimer) clearTimeout(this.logFlushTimer);
+    this.flushLogs();
     this.ws?.close();
     this.ws = null;
+  }
+
+  private handleEvent(event: ServerEvent): void {
+    if (event.type === 'agent-log') {
+      this.bufferLog(event);
+      return;
+    }
+    this.flushLogs();
+    this.options.onEvent?.(event);
+  }
+
+  private bufferLog(event: AgentLogEvent): void {
+    const key = `${event.runId}:${event.stream}`;
+    const pending = this.pendingLogs.get(key);
+    this.pendingLogs.set(key, pending ? { ...pending, chunk: pending.chunk + event.chunk } : event);
+    if (this.logFlushTimer) return;
+    this.logFlushTimer = setTimeout(() => {
+      this.logFlushTimer = null;
+      this.flushLogs();
+    }, 75);
+  }
+
+  private flushLogs(): void {
+    if (this.logFlushTimer) {
+      clearTimeout(this.logFlushTimer);
+      this.logFlushTimer = null;
+    }
+    if (this.pendingLogs.size === 0) return;
+    const events = [...this.pendingLogs.values()];
+    this.pendingLogs.clear();
+    for (const event of events) this.options.onEvent?.(event);
+  }
+
+  private sendSubscribe(runId: string): void {
+    if (this.ws?.readyState !== WebSocket.OPEN) return;
+    this.ws.send(JSON.stringify({ type: 'subscribe', runId }));
   }
 
   private scheduleReconnect(): void {

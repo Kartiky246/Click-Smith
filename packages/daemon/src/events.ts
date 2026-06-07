@@ -1,6 +1,10 @@
 import type { ServerEvent } from '@clicksmith/core';
 
 type Listener = (event: ServerEvent) => void;
+interface ReplayFilter {
+  runId?: string;
+  sessionId?: string;
+}
 
 /**
  * A tiny synchronous pub/sub for {@link ServerEvent}s. The Fastify WebSocket
@@ -34,9 +38,15 @@ export class EventBus {
     }
   }
 
-  /** Replay buffered events, optionally filtered to a run id. */
-  replay(runId?: string): ServerEvent[] {
-    if (!runId) return [...this.history];
-    return this.history.filter((e) => 'runId' in e && e.runId === runId);
+  /** Replay buffered events, scoped to a run or session to avoid noisy reconnects. */
+  replay(filter: ReplayFilter = {}): ServerEvent[] {
+    if (!filter.runId && !filter.sessionId) return [];
+    return this.history.filter((event) => {
+      if (filter.runId && 'runId' in event && event.runId === filter.runId) return true;
+      if (filter.sessionId && 'sessionId' in event && event.sessionId === filter.sessionId) {
+        return true;
+      }
+      return false;
+    });
   }
 }

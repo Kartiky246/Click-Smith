@@ -87,4 +87,29 @@ describe('descriptors & near context', () => {
     expect(payload.conditions.viewport.w).toBeGreaterThan(0);
     expect(typeof payload.ts).toBe('string');
   });
+
+  it('adds compact DOM search hints for agent fast lookup', () => {
+    const root = html(`
+      <main aria-label="Application main content">
+        <h2>For Technical Queries</h2>
+        <vwo-icon icon-name="icon--dashboard">
+          <svg><use href="#icon--abt-dashboard"></use></svg>
+        </vwo-icon>
+      </main>
+    `);
+    const payload = captureElement(root.querySelector('use')!);
+    const hints = payload.frameworkHints?.clicksmith as
+      | {
+          ancestors?: Array<{ attrs?: Record<string, string>; tag: string }>;
+          searchTokens?: string[];
+        }
+      | undefined;
+
+    expect(hints?.searchTokens).toEqual(
+      expect.arrayContaining(['icon--abt-dashboard', 'icon--dashboard', 'For Technical Queries']),
+    );
+    expect(hints?.ancestors?.some((ancestor) => ancestor.attrs?.['icon-name'] === 'icon--dashboard')).toBe(
+      true,
+    );
+  });
 });

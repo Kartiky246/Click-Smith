@@ -60,19 +60,71 @@ export function buildAllLocators(el: Element, options: BuildLocatorOptions = {})
 
 /** A full capture payload (everything but the daemon-assigned id). */
 export function captureElement(el: Element, options: BuildLocatorOptions = {}): CapturedElementInput {
+  const hints = frameworkHints(el);
   return {
     ts: new Date().toISOString(),
     locator: buildLocator(el, options),
     el: describeElement(el),
     near: nearContext(el),
     conditions: captureConditions(),
-    ...(frameworkHints(el) ? { frameworkHints: frameworkHints(el)! } : {}),
+    ...(hints ? { frameworkHints: hints } : {}),
   };
 }
 
 /* --------------------------- element descriptor --------------------------- */
 
 const KEPT_ATTRS = ['class', 'type', 'name', 'href', 'placeholder', 'aria-label', 'title', 'alt'];
+const DOM_HINT_ATTRS = [
+  ...DEFAULT_STABLE_ATTRS,
+  'href',
+  'icon-name',
+  'aria-label',
+  'title',
+  'alt',
+  'role',
+  'name',
+  'type',
+  'placeholder',
+  'for',
+  'src',
+  'ng-click',
+  'ng-if',
+  'routerlink',
+  'data-loc',
+];
+const MAX_DOM_HINT_DEPTH = 5;
+const MAX_SEARCH_TOKENS = 10;
+const COMMON_SEARCH_TOKENS = new Set([
+  'a',
+  'button',
+  'click',
+  'div',
+  'false',
+  'icon',
+  'img',
+  'input',
+  'label',
+  'link',
+  'main',
+  'section',
+  'span',
+  'svg',
+  'true',
+  'use',
+]);
+
+interface CompactElementHint {
+  tag: string;
+  attrs?: Record<string, string>;
+  text?: string;
+}
+
+interface ClickSmithDomHints {
+  self: CompactElementHint;
+  parent?: CompactElementHint;
+  ancestors?: CompactElementHint[];
+  searchTokens?: string[];
+}
 
 export function describeElement(el: Element): ElementDescriptor {
   const attrs: Record<string, string> = {};
@@ -191,7 +243,144 @@ function frameworkHints(el: Element): Record<string, unknown> | undefined {
       break;
     }
   }
+  hints.clicksmith = clicksmithDomHints(el);
   return Object.keys(hints).length ? hints : undefined;
+}
+
+function clicksmithDomHints(el: Element): ClickSmithDomHints {
+  const parent = el.parentElement ? compactElement(el.parentElement) : undefined;
+  const ancestors = compactAncestors(el);
+  const searchTokens = collectSearchTokens(el, parent, ancestors);
+  return {
+    self: compactElement(el),
+    ...(parent ? { parent } : {}),
+    ...(ancestors.length ? { ancestors } : {}),
+    ...(searchTokens.length ? { searchTokens } : {}),
+  };
+}
+
+function compactAncestors(el: Element): CompactElementHint[] {
+  const out: CompactElementHint[] = [];
+  let node = el.parentElement?.parentElement ?? null;
+  while (node && out.length < MAX_DOM_HINT_DEPTH) {
+    const tag = node.tagName.toLowerCase();
+    if (tag === 'html' || tag === 'body') break;
+    out.push(compactElement(node));
+    node = node.parentElement;
+  }
+  return out;
+}
+
+function compactElement(el: Element): CompactElementHint {
+  const attrs = compactAttrs(el);
+  const rawText = (el.textContent ?? '').trim().replace(/\s+/g, ' ');
+  const text = rawText.length <= 80 ? rawText : undefined;
+  return {
+    tag: el.tagName.toLowerCase(),
+    ...(Object.keys(attrs).length ? { attrs } : {}),
+    ...(text ? { text } : {}),
+  };
+}
+
+function compactAttrs(el: Element): Record<string, string> {
+  const attrs: Record<string, string> = {};
+  for (const attr of el.getAttributeNames()) {
+    if (!isUsefulDomHintAttr(attr)) continue;
+    const value = compactAttrValue(attr, el.getAttribute(attr));
+    if (value) attrs[attr] = value;
+    if (Object.keys(attrs).length >= 8) break;
+  }
+  return attrs;
+}
+
+function isUsefulDomHintAttr(attr: string): boolean {
+  const name = attr.toLowerCase();
+  return (
+    DOM_HINT_ATTRS.includes(name) ||
+    name.startsWith('data-') ||
+    name.startsWith('aria-') ||
+    name.includes('icon') ||
+    name.includes('test')
+  );
+}
+
+function compactAttrValue(attr: string, value: string | null): string | undefined {
+  if (!value) return undefined;
+  const normalized = value.trim().replace(/\s+/g, ' ');
+  if (!normalized) return undefined;
+  if (attr === 'class') {
+    const classes = normalized
+      .split(/\s+/)
+      .filter((cls) => /icon|logo|btn|button|nav|card|dashboard|header/i.test(cls))
+      .slice(0, 4);
+    return classes.length ? classes.join(' ') : undefined;
+  }
+  return normalized.slice(0, 120);
+}
+
+function collectSearchTokens(
+  el: Element,
+  parent: CompactElementHint | undefined,
+  ancestors: CompactElementHint[],
+): string[] {
+  const out: string[] = [];
+  const seen = new Set<string>();
+
+  const add = (value: string | undefined) => {
+    for (const token of searchTokenVariants(value)) {
+      const key = token.toLowerCase();
+      if (seen.has(key)) continue;
+      seen.add(key);
+      out.push(token);
+      if (out.length >= MAX_SEARCH_TOKENS) return;
+    }
+  };
+
+  for (const hint of [compactElement(el), parent, ...ancestors]) {
+    if (!hint || out.length >= MAX_SEARCH_TOKENS) break;
+    for (const [attr, value] of Object.entries(hint.attrs ?? {})) {
+      if (attr === 'class') {
+        for (const cls of value.split(/\s+/)) add(cls);
+      } else {
+        add(value);
+      }
+      if (out.length >= MAX_SEARCH_TOKENS) break;
+    }
+    add(hint.text);
+  }
+
+  const name = accessibleName(el);
+  add(name);
+  const near = nearContext(el);
+  for (const value of [
+    ...(near.labels ?? []),
+    ...(near.headings ?? []),
+    ...(near.landmarks ?? []),
+    near.parentText,
+  ]) {
+    add(value);
+    if (out.length >= MAX_SEARCH_TOKENS) break;
+  }
+
+  return out;
+}
+
+function searchTokenVariants(value: string | undefined): string[] {
+  if (!value) return [];
+  const normalized = value.trim().replace(/\s+/g, ' ');
+  if (!normalized || normalized.length > 120) return [];
+
+  const variants = [normalized];
+  if (normalized.startsWith('#') && normalized.length > 1) variants.unshift(normalized.slice(1));
+  if (normalized.includes('/')) variants.push(normalized.split('/').filter(Boolean).at(-1) ?? '');
+  if (normalized.includes(':') && !normalized.includes(' ')) {
+    variants.push(normalized.split(':').filter(Boolean).at(-1) ?? '');
+  }
+
+  return variants
+    .map((token) => token.trim().replace(/^["'`#]+|["'`]+$/g, ''))
+    .filter((token) => token.length >= 3 && token.length <= 80)
+    .filter((token) => !COMMON_SEARCH_TOKENS.has(token.toLowerCase()));
 }
 
 /* -------------------------------- helpers --------------------------------- */

@@ -5,6 +5,7 @@ import {
   defaultBinExists,
   renderInstructionBody,
   resolveAgent,
+  type AgentAdapter,
   type AgentConfig,
   type AgentLaunchContext,
 } from '@clicksmith/agent-config';
@@ -12,6 +13,7 @@ import {
   newRunId,
   type ApplyResponse,
   type CaptureBundle,
+  type CapturedElement,
   type SandboxInfo,
 } from '@clicksmith/core';
 import { describeSandbox, Git } from './git.js';
@@ -39,8 +41,19 @@ export interface RunManagerDeps {
 }
 
 const COMMIT_PREFIX = 'ClickSmith';
+const POSITIVE_AVAILABILITY_CACHE_MS = 60_000;
+const NEGATIVE_AVAILABILITY_CACHE_MS = 5_000;
+const LOG_FLUSH_MS = 75;
+const LOG_FLUSH_BYTES = 16 * 1024;
+
+interface AvailabilityCacheEntry {
+  ok: boolean;
+  expiresAt: number;
+}
 
 export class RunManager {
+  private readonly availabilityCache = new Map<string, AvailabilityCacheEntry>();
+
   constructor(private readonly deps: RunManagerDeps) {}
 
   /**
@@ -68,8 +81,10 @@ export class RunManager {
 
     if (repoRoot) {
       const git = new Git(repoRoot);
-      baseCommit = await git.headCommit();
-      baseBranch = await safe(() => git.currentBranch());
+      [baseCommit, baseBranch] = await Promise.all([
+        git.headCommit(),
+        safe(() => git.currentBranch()),
+      ]);
       const baseRef = input.execution.baseRef ?? baseCommit;
 
       if (
@@ -164,11 +179,10 @@ export class RunManager {
     const { store, config, bus, logger } = this.deps;
     const sandboxPath = run.sandbox?.path ?? config.cwd;
 
-    const instructionFile = await this.resolveInstructionFile(run, agentConfig);
+    const instructionFile = await this.resolveInstructionFile(run);
     const agentPrompt = buildAgentPrompt({
       bundle,
       bundlePath: store.bundlePath(run.runId),
-      instructionFile,
       run,
     });
     const ctx: AgentLaunchContext = {
@@ -185,7 +199,7 @@ export class RunManager {
     };
 
     const adapter = configToAdapter(agentConfig);
-    if (!(await adapter.isAvailable(ctx))) {
+    if (!(await this.isAgentAvailable(agentConfig, adapter, ctx))) {
       await this.fail(run, unavailableMessage(agentConfig));
       return;
     }
@@ -204,23 +218,31 @@ export class RunManager {
     };
     logger.info(`run ${run.runId}: ${spec.command} ${spec.args.join(' ')}`);
 
+    const logBuffer = createLogBuffer(
+      (chunk) => store.appendLog(run.runId, chunk),
+      (err) => logger.warn(`run ${run.runId}: failed to persist agent log`, err),
+    );
+
     let result;
     try {
       result = await launchAgent(spec, {
         onLog: (stream, chunk) => {
-          void store.appendLog(run.runId, chunk);
+          logBuffer.append(chunk);
           bus.emit({ type: 'agent-log', runId: run.runId, stream, chunk });
         },
       });
     } catch (err) {
+      await logBuffer.flush();
       await this.fail(run, err instanceof Error ? err.message : String(err));
       return;
     }
+    await logBuffer.flush();
 
-    // Capture artifacts from the sandbox.
+    // Capture artifacts from isolated sandboxes. Inplace runs edit the current
+    // tree directly, so the extension does not need a daemon-generated patch.
     const plan = result.stdout.trim();
     let diff = '';
-    if (run.sandbox && run.repoRoot) {
+    if (run.sandbox && run.repoRoot && run.sandbox.isolation !== 'inplace') {
       diff = await Git.captureDiff(run.sandbox.path);
     }
     if (plan) await store.writeArtifact(run.runId, 'plan.md', plan);
@@ -258,6 +280,24 @@ export class RunManager {
     run.updatedAt = new Date().toISOString();
     await this.deps.store.saveRun(run);
     this.deps.bus.emit({ type: 'agent-error', runId: run.runId, message });
+  }
+
+  private async isAgentAvailable(
+    agentConfig: AgentConfig,
+    adapter: AgentAdapter,
+    ctx: AgentLaunchContext,
+  ): Promise<boolean> {
+    const key = availabilityCacheKey(agentConfig);
+    const now = Date.now();
+    const cached = this.availabilityCache.get(key);
+    if (cached && cached.expiresAt > now) return cached.ok;
+
+    const ok = await adapter.isAvailable(ctx);
+    this.availabilityCache.set(key, {
+      ok,
+      expiresAt: now + (ok ? POSITIVE_AVAILABILITY_CACHE_MS : NEGATIVE_AVAILABILITY_CACHE_MS),
+    });
+    return ok;
   }
 
   /**
@@ -349,28 +389,14 @@ export class RunManager {
   }
 
   /**
-   * Resolve the instruction file passed to the agent. Prefer the project's
-   * rendered file if it exists; otherwise write a run-local one from the shared
-   * template so every agent always has instructions.
+   * Resolve the instruction file passed to the agent. Use a run-local compact
+   * file so ClickSmith runs do not ingest a project's full AGENTS/CLAUDE/rules
+   * corpus before the targeted UI lookup has even started.
    */
-  private async resolveInstructionFile(run: RunRecord, agentConfig: AgentConfig): Promise<string> {
+  private async resolveInstructionFile(run: RunRecord): Promise<string> {
     const { config, store } = this.deps;
-    if (config.repoRoot && agentConfig.instructions) {
-      const projectFile = join(config.repoRoot, agentConfig.instructions.file);
-      if (await fileExists(projectFile)) return projectFile;
-    }
     const body = renderInstructionBody({ daemonPort: config.port });
     return store.writeArtifact(run.runId, 'AGENT_INSTRUCTIONS.md', body);
-  }
-}
-
-async function fileExists(path: string): Promise<boolean> {
-  const { access } = await import('node:fs/promises');
-  try {
-    await access(path);
-    return true;
-  } catch {
-    return false;
   }
 }
 
@@ -395,50 +421,251 @@ function unavailableMessage(agentConfig: AgentConfig): string {
   );
 }
 
+function availabilityCacheKey(agentConfig: AgentConfig): string {
+  return [
+    agentConfig.id,
+    agentConfig.command,
+    ...(agentConfig.detect?.anyOf ?? [agentConfig.command]),
+  ].join('\0');
+}
+
+function createLogBuffer(
+  write: (chunk: string) => Promise<void>,
+  onError: (err: unknown) => void,
+): { append: (chunk: string) => void; flush: () => Promise<void> } {
+  let buffer = '';
+  let timer: ReturnType<typeof setTimeout> | null = null;
+  let flushChain = Promise.resolve();
+
+  async function flush(): Promise<void> {
+    if (timer) {
+      clearTimeout(timer);
+      timer = null;
+    }
+    if (!buffer) return flushChain;
+
+    const chunk = buffer;
+    buffer = '';
+    flushChain = flushChain.then(() => write(chunk)).catch(onError);
+    await flushChain;
+  }
+
+  return {
+    append(chunk) {
+      buffer += chunk;
+      if (buffer.length >= LOG_FLUSH_BYTES) {
+        void flush();
+      } else if (!timer) {
+        timer = setTimeout(() => void flush(), LOG_FLUSH_MS);
+      }
+    },
+    flush,
+  };
+}
+
 function buildAgentPrompt(input: {
   bundle: CaptureBundle;
   bundlePath: string;
-  instructionFile: string;
   run: RunRecord;
 }): string {
-  const { bundle, bundlePath, instructionFile, run } = input;
-  const modeGuidance =
+  const { bundle, bundlePath, run } = input;
+  const targets = bundle.elements.map(formatTargetSummary).join('\n');
+  const firstActions = buildFirstActions(bundle, bundlePath).map((action, index) => {
+    return `${index + 1}. ${action}`;
+  });
+  const modeLine =
     bundle.execution.mode === 'edit'
-      ? 'Edit the files needed to satisfy the request inside the working directory. Do not apply back to the main tree; ClickSmith handles Apply.'
-      : 'Produce a concise plan. You may inspect files, but do not modify them in plan mode.';
-  const elementSummary = bundle.elements
-    .map((element) => {
-      const text = element.el.text || element.el.label || element.el.tag;
-      const locator =
-        element.locator.kind === 'source'
-          ? `${element.locator.file}:${element.locator.line}`
-          : element.locator.kind === 'attr'
-            ? `${element.locator.attr}=${JSON.stringify(element.locator.value)}`
-            : element.locator.kind === 'behavioral'
-              ? `${element.locator.role} ${JSON.stringify(element.locator.name)}`
-              : element.locator.selector;
-      return `#${element.id}: ${element.el.tag} ${JSON.stringify(text)} via ${element.locator.kind} (${locator})`;
-    })
-    .join('\n');
+      ? 'Mode: edit. Make the smallest working-tree change; do not ask for confirmation.'
+      : 'Mode: plan. Inspect only and return a concise plan.';
 
   return [
-    'ClickSmith captured a browser UI change request.',
-    '',
-    `User request: ${bundle.prompt}`,
-    `App URL: ${bundle.app.url}`,
-    `Route: ${bundle.app.route}`,
-    `Execution mode: ${bundle.execution.mode}`,
+    'ClickSmith fast UI edit.',
+    `Request: ${truncateLine(bundle.prompt, 300)}`,
+    `Route: ${truncateLine(bundle.app.route, 160)}`,
+    `Cwd: ${run.sandbox?.path ?? run.repoRoot ?? '(none)'}`,
     `Isolation: ${run.isolation}`,
-    `Working directory: ${run.sandbox?.path ?? run.repoRoot ?? '(none)'}`,
     '',
-    'Read these files before deciding what to change:',
-    `- Instructions: ${instructionFile}`,
-    `- Capture bundle JSON: ${bundlePath}`,
+    'Targets:',
+    targets,
     '',
-    'Captured elements:',
-    elementSummary,
+    'Immediate actions (run ONLY these; do NOT read project docs or explore files first):',
+    ...firstActions,
     '',
-    modeGuidance,
-    'Use the numbered #N element references from the bundle. Prefer source locators first, then stable attributes, behavioral locators, and DOM context.',
+    'Rules:',
+    '- If a source file:line is listed above, open only that file at that line. No grep needed.',
+    '- If only grep commands are listed, run them (max two), then edit the matching file.',
+    '- If a grep result is only a shared sprite/icon definition, grep further to find the component usage.',
+    '- Do NOT read AGENTS.md, CLAUDE.md, .cursor/rules, guidelines, or any other docs.',
+    `- Read the bundle only as a last resort if the target is still ambiguous: ${bundlePath}`,
+    '- Keep final output brief: changed files only.',
+    '',
+    modeLine,
   ].join('\n');
 }
+
+function formatTargetSummary(element: CapturedElement): string {
+  const label = element.el.text || element.el.label || element.el.role || element.el.tag;
+  const attrs = formatAttrs(element.el.attrs);
+  const locator = formatLocator(element);
+  const near = formatNear(element);
+  const tokens = collectElementSearchTokens(element).slice(0, 5);
+  return [
+    `#${element.id} <${element.el.tag}> ${quoteText(label)}`,
+    `locator=${locator}`,
+    attrs ? `attrs=${attrs}` : '',
+    near ? `near=${near}` : '',
+    tokens.length ? `tokens=${tokens.map(quoteText).join(', ')}` : '',
+  ]
+    .filter(Boolean)
+    .join(' | ');
+}
+
+function formatLocator(element: CapturedElement): string {
+  const { locator } = element;
+  if (locator.kind === 'source') {
+    return `source:${locator.file}:${locator.line}${locator.column != null ? `:${locator.column}` : ''}`;
+  }
+  if (locator.kind === 'attr') {
+    return `attr:${locator.attr}=${quoteText(locator.value)}`;
+  }
+  if (locator.kind === 'behavioral') {
+    return `behavioral:${locator.role} ${quoteText(locator.name)}`;
+  }
+  return `dom:${truncateLine(locator.selector, 120)}`;
+}
+
+function formatAttrs(attrs: Record<string, string>): string {
+  return Object.entries(attrs)
+    .slice(0, 5)
+    .map(([key, value]) => `${key}=${quoteText(value)}`)
+    .join(' ');
+}
+
+function formatNear(element: CapturedElement): string {
+  return [
+    ...(element.near.labels ?? []).slice(0, 1).map((label) => `label=${quoteText(label)}`),
+    ...(element.near.headings ?? []).slice(0, 1).map((heading) => `heading=${quoteText(heading)}`),
+    ...(element.near.landmarks ?? []).slice(0, 1).map((landmark) => `landmark=${quoteText(landmark)}`),
+  ].join(' ');
+}
+
+function buildFirstActions(bundle: CaptureBundle, bundlePath: string): string[] {
+  const sourceActions = bundle.elements
+    .filter((element) => element.locator.kind === 'source')
+    .map((element) => {
+      if (element.locator.kind !== 'source') return '';
+      const start = Math.max(1, element.locator.line - 30);
+      const end = element.locator.line + 30;
+      return `Open #${element.id} source ${element.locator.file}:${element.locator.line} (for example: sed -n '${start},${end}p' ${shellQuote(element.locator.file)}).`;
+    })
+    .filter(Boolean);
+  if (sourceActions.length) return sourceActions.slice(0, 2);
+
+  const tokens = collectBundleSearchTokens(bundle);
+  const actions: string[] = [];
+  if (tokens.length) {
+    actions.push(`git grep -n ${tokens.slice(0, 2).map((token) => `-e ${shellQuote(token)}`).join(' ')} -- . 2>/dev/null || true`);
+  }
+  if (tokens.length > 2) {
+    actions.push(`git grep -n ${tokens.slice(2, 4).map((token) => `-e ${shellQuote(token)}`).join(' ')} -- . 2>/dev/null || true`);
+  }
+  if (actions.length) return actions;
+
+  return [`No exact token captured. Read the fallback bundle once: ${bundlePath}`];
+}
+
+function collectBundleSearchTokens(bundle: CaptureBundle): string[] {
+  const out: string[] = [];
+  const seen = new Set<string>();
+  const add = (token: string) => {
+    const key = token.toLowerCase();
+    if (seen.has(key)) return;
+    seen.add(key);
+    out.push(token);
+  };
+
+  for (const element of bundle.elements) {
+    for (const token of collectElementSearchTokens(element)) add(token);
+  }
+  return out.slice(0, 8);
+}
+
+function collectElementSearchTokens(element: CapturedElement): string[] {
+  const tokens: string[] = [];
+  const add = (value: string | undefined) => {
+    for (const token of searchTokenVariants(value)) {
+      if (!tokens.some((existing) => existing.toLowerCase() === token.toLowerCase())) {
+        tokens.push(token);
+      }
+    }
+  };
+
+  if (element.locator.kind === 'attr') add(element.locator.value);
+  if (element.locator.kind === 'behavioral') add(element.locator.name);
+  for (const token of clicksmithHintTokens(element)) add(token);
+  for (const value of Object.values(element.el.attrs)) add(value);
+  for (const token of element.el.iconHints ?? []) add(token);
+  add(element.el.label);
+  add(element.el.text);
+  for (const label of element.near.labels ?? []) add(label);
+  for (const heading of element.near.headings ?? []) add(heading);
+  add(element.near.parentText);
+
+  return tokens.slice(0, 10);
+}
+
+function clicksmithHintTokens(element: CapturedElement): string[] {
+  const raw = element.frameworkHints?.clicksmith;
+  if (!isRecord(raw)) return [];
+  const tokens = raw.searchTokens;
+  return Array.isArray(tokens) ? tokens.filter((token): token is string => typeof token === 'string') : [];
+}
+
+function searchTokenVariants(value: string | undefined): string[] {
+  if (!value) return [];
+  const normalized = value.trim().replace(/\s+/g, ' ');
+  if (!normalized || normalized.length > 120) return [];
+  const variants = [normalized];
+  if (normalized.startsWith('#') && normalized.length > 1) variants.unshift(normalized.slice(1));
+  if (normalized.includes('/') && !normalized.includes(' ')) {
+    variants.push(normalized.split('/').filter(Boolean).at(-1) ?? '');
+  }
+  return variants
+    .map((token) => token.trim().replace(/^["'`#]+|["'`]+$/g, ''))
+    .filter((token) => token.length >= 3 && token.length <= 80)
+    .filter((token) => !COMMON_SEARCH_TOKENS.has(token.toLowerCase()));
+}
+
+function quoteText(value: string): string {
+  return JSON.stringify(truncateLine(value, 120));
+}
+
+function truncateLine(value: string, max: number): string {
+  const oneLine = value.replace(/\s+/g, ' ').trim();
+  return oneLine.length <= max ? oneLine : `${oneLine.slice(0, max - 3)}...`;
+}
+
+function shellQuote(value: string): string {
+  return `'${value.replace(/'/g, `'\\''`)}'`;
+}
+
+function isRecord(value: unknown): value is Record<string, unknown> {
+  return typeof value === 'object' && value !== null && !Array.isArray(value);
+}
+
+const COMMON_SEARCH_TOKENS = new Set([
+  'button',
+  'click',
+  'div',
+  'false',
+  'icon',
+  'input',
+  'label',
+  'link',
+  'main',
+  'section',
+  'span',
+  'svg',
+  'true',
+  'use',
+]);

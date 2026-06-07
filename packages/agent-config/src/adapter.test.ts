@@ -38,6 +38,13 @@ describe('configToAdapter', () => {
     expect(spec.args).toContain('@/CLAUDE.md');
   });
 
+  it('launches Codex with fast per-run reasoning defaults', () => {
+    const codex = DEFAULT_AGENTS.find((a) => a.id === 'codex')!;
+    const spec = configToAdapter(codex).buildCommand({ ...ctx, agentId: 'codex' });
+    expect(spec.args).toContain('--ephemeral');
+    expect(spec.args).toContain('model_reasoning_effort="low"');
+  });
+
   it('parses plan-ready and error events from config regexes', () => {
     const adapter = configToAdapter(claude);
     const events = adapter.parseEvents!('## Plan\nerror: boom\n', ctx);

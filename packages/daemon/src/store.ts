@@ -1,4 +1,4 @@
-import { mkdir, readFile, readdir, rm, writeFile } from 'node:fs/promises';
+import { appendFile, mkdir, readFile, readdir, rm, writeFile } from 'node:fs/promises';
 import { join } from 'node:path';
 import {
   deserializeBundle,
@@ -129,8 +129,7 @@ export class FileStore {
   async appendLog(runId: string, chunk: string): Promise<void> {
     const file = join(this.runDir(runId), 'agent.log');
     await mkdir(this.runDir(runId), { recursive: true });
-    const existing = (await readText(file)) ?? '';
-    await writeFile(file, existing + chunk, 'utf8');
+    await appendFile(file, chunk, 'utf8');
   }
 
   /* ----------------------------- maintenance ----------------------------- */

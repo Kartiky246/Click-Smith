@@ -18,15 +18,15 @@ in the page and would be subject to its CSP, so all daemon I/O is proxied.
 
 ## Key modules
 
-| Path | Role |
-| --- | --- |
-| `src/lib/locator.ts` | Builds the best locator (`source → attr → behavioral → dom`), element descriptor, near-context, and conditions. Fully unit-tested. |
-| `src/lib/daemon-client.ts` | HTTP + auto-reconnecting WebSocket client for the daemon. |
-| `src/lib/overlay.ts` | The floating marks tray, prompt composer, and run/diff panel (shadow DOM). |
-| `src/lib/messages.ts` | The content/popup ↔ background message protocol. |
-| `src/entrypoints/background.ts` | Daemon bridge + AI-mode/agent state. |
-| `src/entrypoints/content.ts` | Alt+Click capture + overlay wiring + risky-option confirmation. |
-| `src/entrypoints/popup/` | Toggle AI Mode, pick the agent, show daemon status. |
+| Path                            | Role                                                                                                                               |
+| ------------------------------- | ---------------------------------------------------------------------------------------------------------------------------------- |
+| `src/lib/locator.ts`            | Builds the best locator (`source → attr → behavioral → dom`), element descriptor, near-context, and conditions. Fully unit-tested. |
+| `src/lib/daemon-client.ts`      | HTTP + auto-reconnecting WebSocket client for the daemon.                                                                          |
+| `src/lib/overlay.ts`            | The focused capture overlay, prompt composer, collapsed terminal stream, and run status (shadow DOM).                              |
+| `src/lib/messages.ts`           | The content/popup ↔ background message protocol.                                                                                   |
+| `src/entrypoints/background.ts` | Daemon bridge + agent state + enforced edit/inplace submission defaults.                                                           |
+| `src/entrypoints/content.ts`    | Alt+Click capture + overlay wiring + direct agent handoff.                                                                         |
+| `src/entrypoints/popup/`        | Pick the agent and show daemon status.                                                                                             |
 
 ## Develop
 
@@ -46,7 +46,7 @@ tested with vitest + happy-dom (`src/lib/locator.test.ts`): priority ordering,
 ancestor `data-loc` inheritance, attribute fallback, behavioral and DOM
 fallbacks, descriptors, and near-context.
 
-End-to-end coverage (Alt+Click, cross-route session persistence, tray removal,
-risky-option confirmation, submit streaming, diff display, Apply) is intended to
-run via Playwright + WXT's extension test runner against the `demo-vite` app and
-a real daemon.
+End-to-end coverage (Alt+Click, cross-route session persistence, target removal,
+submit streaming, collapsed terminal logs, and inplace edit handoff) is intended
+to run via Playwright + WXT's extension test runner against the `demo-vite` app
+and a real daemon.

@@ -5,23 +5,93 @@
     <meta name="viewport" content="width=device-width, initial-scale=1.0" />
     <title>ClickSmith</title>
     <style>
-      :root { color-scheme: dark; }
-      body { width: 260px; margin: 0; padding: 14px; font: 13px/1.4 system-ui, sans-serif;
-        background: #1c1c22; color: #e7e7ea; }
-      h1 { font-size: 14px; margin: 0 0 10px; }
-      .row { display: flex; align-items: center; justify-content: space-between; margin: 10px 0; }
-      .dot { width: 9px; height: 9px; border-radius: 50%; display: inline-block; margin-right: 6px; }
-      .on { background: #4ade80; } .off { background: #f87171; }
-      select { background: #15151b; color: #e7e7ea; border: 1px solid #34343c; border-radius: 6px; padding: 4px; }
-      .switch { cursor: pointer; }
-      .hint { font-size: 11px; opacity: .7; margin-top: 8px; }
+      :root {
+        color-scheme: light;
+      }
+      body {
+        width: 280px;
+        margin: 0;
+        padding: 14px;
+        background: #fff;
+        color: #172033;
+        font:
+          13px/1.45 system-ui,
+          -apple-system,
+          BlinkMacSystemFont,
+          'Segoe UI',
+          sans-serif;
+      }
+      h1 {
+        margin: 0;
+        color: #101827;
+        font-size: 15px;
+        letter-spacing: 0;
+      }
+      .top {
+        display: flex;
+        align-items: center;
+        justify-content: space-between;
+        gap: 12px;
+        margin-bottom: 14px;
+      }
+      .status {
+        display: inline-flex;
+        align-items: center;
+        min-height: 24px;
+        padding: 0 8px;
+        border: 1px solid #dbe3ef;
+        border-radius: 999px;
+        background: #f8fafc;
+        color: #475467;
+        font-size: 11px;
+        font-weight: 650;
+        white-space: nowrap;
+      }
+      .row {
+        display: flex;
+        flex-direction: column;
+        gap: 6px;
+        margin: 0;
+      }
+      label {
+        color: #667085;
+        font-size: 12px;
+        font-weight: 650;
+      }
+      .dot {
+        display: inline-block;
+        width: 7px;
+        height: 7px;
+        margin-right: 6px;
+        border-radius: 50%;
+        background: #ef4444;
+      }
+      .on {
+        background: #16a34a;
+      }
+      select {
+        width: 100%;
+        min-height: 34px;
+        padding: 0 8px;
+        border: 1px solid #cfd8e6;
+        border-radius: 7px;
+        background: #fff;
+        color: #101827;
+        font: inherit;
+      }
+      .hint {
+        margin: 12px 0 0;
+        padding-top: 10px;
+        border-top: 1px solid #e7ebf2;
+        color: #667085;
+        font-size: 12px;
+      }
     </style>
   </head>
   <body>
-    <h1>⚒️ ClickSmith</h1>
-    <div class="row">
-      <label class="switch"><input type="checkbox" id="aiMode" /> AI Mode</label>
-      <span id="status"><span class="dot off"></span>checking…</span>
+    <div class="top">
+      <h1>ClickSmith</h1>
+      <span id="status" class="status"><span class="dot off"></span>Checking</span>
     </div>
     <div class="row">
       <label for="agent">Agent</label>
@@ -33,7 +103,7 @@
         <option value="generic">Generic</option>
       </select>
     </div>
-    <p class="hint">Alt+Click elements on the page to capture them as #1, #2, … Then describe your change in the tray.</p>
+    <p class="hint">Alt+Click a page element, then describe the edit in the overlay.</p>
     <script type="module" src="./main.ts"></script>
   </body>
 </html>
