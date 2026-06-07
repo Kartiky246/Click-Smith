@@ -1,0 +1,1349 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8"/>
+  <meta name="viewport" content="width=device-width, initial-scale=1.0"/>
+  <title>ClickSmith — Click any UI element. Ship the fix.</title>
+  <meta name="description" content="Alt+Click any element on your running app. Describe the change. ClickSmith routes it to Claude Code in a sandboxed git worktree. Local-first. MIT."/>
+  <style>
+    :root {
+      --bg:       #0a0a0a;
+      --bg-1:     #111111;
+      --bg-2:     #181818;
+      --bg-3:     #1e1e1e;
+      --bg-4:     #242424;
+      --border:   #2e2e2e;
+      --border-2: #3a3a3a;
+      --text:     #ebebeb;
+      --text-2:   #999;
+      --text-3:   #666;
+      --text-4:   #444;
+      --accent:   #4f6ef7;
+      --accent-l: #6b84f5;
+      --accent-g: rgba(79,110,247,.14);
+      --green:    #22c55e;
+      --green-g:  rgba(34,197,94,.15);
+      --red:      #ef4444;
+      --amber:    #f59e0b;
+      --sans: -apple-system, BlinkMacSystemFont, "Inter", "Segoe UI", sans-serif;
+      --mono: "SF Mono","Fira Code",ui-monospace,Menlo,monospace;
+      --r:  10px;
+      --rs: 6px;
+    }
+
+    *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+
+    html {
+      scroll-snap-type: y mandatory;
+      scroll-behavior: smooth;
+      overflow-x: clip;
+      scrollbar-width: thin;
+      scrollbar-color: rgba(79,110,247,.4) transparent;
+    }
+    @media (max-width: 880px) { html { scroll-snap-type: y proximity; } }
+    ::-webkit-scrollbar { width: 7px; }
+    ::-webkit-scrollbar-track { background: var(--bg-2); }
+    ::-webkit-scrollbar-thumb { background: var(--accent); border-radius: 999px; border: 2px solid var(--bg-2); }
+
+    body {
+      background: var(--bg);
+      color: var(--text);
+      font-family: var(--sans);
+      font-size: 16px;
+      line-height: 1.55;
+      -webkit-font-smoothing: antialiased;
+    }
+
+    /* ── Reveal on scroll ─────────────────────────────── */
+    .fx { opacity: 0; transform: translateY(22px); transition: opacity .65s ease, transform .65s ease; }
+    .fx.in { opacity: 1; transform: none; }
+    .fx.d1 { transition-delay: .08s; }
+    .fx.d2 { transition-delay: .17s; }
+    .fx.d3 { transition-delay: .26s; }
+    .fx.d4 { transition-delay: .35s; }
+    .fx.d5 { transition-delay: .44s; }
+
+    /* ── Snap sections ────────────────────────────────── */
+    .snap { scroll-snap-align: start; min-height: 100vh; }
+
+    /* ================================================== */
+    /* NAV                                                 */
+    /* ================================================== */
+    .nav {
+      position: fixed; top: 0; left: 0; right: 0; z-index: 200;
+      display: flex; align-items: center; justify-content: space-between;
+      padding: 0 28px; height: 54px;
+      border-bottom: 1px solid rgba(46,46,46,.7);
+      background: rgba(10,10,10,.82);
+      backdrop-filter: blur(18px) saturate(180%);
+      -webkit-backdrop-filter: blur(18px) saturate(180%);
+    }
+    .nav-brand { display: flex; align-items: center; gap: 9px; text-decoration: none; }
+    .nav-icon {
+      width: 28px; height: 28px; border-radius: 7px;
+      background: var(--accent);
+      display: flex; align-items: center; justify-content: center; flex-shrink: 0;
+    }
+    .nav-icon svg { width: 13px; height: 13px; }
+    .nav-name { font-size: 15px; font-weight: 700; color: var(--text); letter-spacing: -.3px; }
+    .nav-right { display: flex; align-items: center; gap: 6px; }
+    .nav-link {
+      padding: 6px 13px; border-radius: var(--rs); font-size: 13px; font-weight: 500;
+      text-decoration: none; color: var(--text-2);
+      transition: color .12s, background .12s;
+    }
+    .nav-link:hover { color: var(--text); background: rgba(255,255,255,.045); }
+    .nav-cta {
+      padding: 7px 16px; border-radius: var(--rs); font-size: 13px; font-weight: 600;
+      background: var(--accent); color: #fff; text-decoration: none;
+      transition: background .12s, box-shadow .12s;
+    }
+    .nav-cta:hover { background: #3d5ce8; box-shadow: 0 4px 16px rgba(79,110,247,.35); }
+    .nav-ver {
+      padding: 4px 9px; border-radius: 999px; font-size: 11px; font-weight: 500;
+      background: rgba(79,110,247,.1); color: var(--accent-l);
+      border: 1px solid rgba(79,110,247,.2); font-family: var(--mono);
+    }
+
+    /* ================================================== */
+    /* HERO                                               */
+    /* ================================================== */
+    .hero {
+      position: relative; display: flex; align-items: center;
+      padding: 80px 32px 48px; overflow: hidden;
+    }
+    .hero-dots {
+      position: absolute; inset: 0; z-index: 0; pointer-events: none;
+      background-image: radial-gradient(circle, #252525 1px, transparent 1px);
+      background-size: 26px 26px;
+      mask-image: radial-gradient(ellipse 80% 90% at 50% 50%, #000 30%, transparent 100%);
+      -webkit-mask-image: radial-gradient(ellipse 80% 90% at 50% 50%, #000 30%, transparent 100%);
+    }
+    .hero-glow-l {
+      position: absolute; inset: 0; z-index: 0; pointer-events: none;
+      background: radial-gradient(ellipse 70% 60% at 10% 55%, rgba(79,110,247,.09) 0%, transparent 65%);
+    }
+    .hero-glow-r {
+      position: absolute; inset: 0; z-index: 0; pointer-events: none;
+      background: radial-gradient(ellipse 55% 70% at 90% 30%, rgba(79,110,247,.06) 0%, transparent 60%);
+    }
+    .hero-inner {
+      position: relative; z-index: 1;
+      width: 100%; max-width: 1180px; margin: 0 auto;
+      display: grid; grid-template-columns: 1fr 1.05fr;
+      gap: 56px; align-items: center;
+    }
+    .hero-eyebrow {
+      display: inline-flex; align-items: center; gap: 7px;
+      padding: 4px 12px 4px 7px; border-radius: 999px; margin-bottom: 22px;
+      background: rgba(79,110,247,.08); border: 1px solid rgba(79,110,247,.22);
+      font-size: 12px; font-weight: 500; color: var(--accent-l);
+    }
+    .eyebrow-dot {
+      width: 7px; height: 7px; border-radius: 50%;
+      background: var(--accent); animation: eblink 2s infinite;
+    }
+    @keyframes eblink { 0%,100%{opacity:1} 50%{opacity:.3} }
+    .hero-h1 {
+      font-size: clamp(40px, 5.2vw, 66px);
+      font-weight: 800; letter-spacing: -2px; line-height: 1.05;
+      color: var(--text); margin-bottom: 22px;
+    }
+    .hero-h1 .h-dim { color: var(--text-3); font-weight: 500; }
+    .hero-h1 .h-acc { color: var(--accent); }
+    .hero-sub {
+      font-size: 17px; line-height: 1.65; color: var(--text-2);
+      max-width: 430px; margin-bottom: 34px;
+    }
+    .hero-sub strong { color: var(--text); font-weight: 600; }
+    .hero-actions { display: flex; align-items: center; gap: 11px; flex-wrap: wrap; }
+    .btn-p {
+      display: inline-flex; align-items: center; gap: 8px;
+      padding: 12px 22px; border-radius: var(--rs); font-size: 14px; font-weight: 600;
+      background: var(--accent); color: #fff; text-decoration: none; cursor: pointer;
+      border: 1px solid var(--accent);
+      transition: background .12s, box-shadow .15s, transform .12s;
+    }
+    .btn-p:hover { background: #3d5ce8; border-color: #3d5ce8; box-shadow: 0 8px 28px rgba(79,110,247,.32); transform: translateY(-1px); }
+    .btn-s {
+      display: inline-flex; align-items: center; gap: 8px;
+      padding: 11px 20px; border-radius: var(--rs); font-size: 14px; font-weight: 500;
+      background: transparent; color: var(--text-2); text-decoration: none; cursor: pointer;
+      border: 1px solid var(--border-2);
+      transition: background .12s, color .12s, border-color .12s;
+    }
+    .btn-s:hover { background: rgba(255,255,255,.04); color: var(--text); border-color: var(--border); }
+    .hero-footnote {
+      display: flex; align-items: center; gap: 16px;
+      margin-top: 24px; font-size: 12px; color: var(--text-4);
+    }
+    .hero-footnote span { display: flex; align-items: center; gap: 5px; }
+    .footnote-sep { color: var(--border-2); }
+
+    /* ── Hero visual ─────────────────────────────────── */
+    .hero-visual {
+      position: relative;
+      display: flex; align-items: center; justify-content: flex-end;
+    }
+    .browser-chrome {
+      width: 100%; max-width: 520px;
+      border-radius: 12px;
+      border: 1px solid var(--border-2);
+      overflow: hidden;
+      box-shadow: 0 32px 80px rgba(0,0,0,.7), 0 2px 8px rgba(0,0,0,.5);
+      animation: float 5s ease-in-out infinite;
+    }
+    @keyframes float {
+      0%,100% { transform: translateY(0); }
+      50%      { transform: translateY(-9px); }
+    }
+    .bc-bar {
+      background: #1c1c1c; padding: 10px 14px;
+      display: flex; align-items: center; gap: 10px;
+      border-bottom: 1px solid var(--border);
+    }
+    .bc-dots { display: flex; gap: 6px; }
+    .bc-dot { width: 11px; height: 11px; border-radius: 50%; }
+    .bc-dot.r { background: #ff5f57; }
+    .bc-dot.y { background: #febc2e; }
+    .bc-dot.g { background: #28c840; }
+    .bc-url {
+      flex: 1; background: var(--bg-3); border: 1px solid var(--border);
+      border-radius: 5px; padding: 4px 10px;
+      font-size: 11.5px; font-family: var(--mono); color: var(--text-3);
+      text-align: center;
+    }
+    .bc-body {
+      background: #151515; padding: 28px 24px;
+      min-height: 340px; position: relative;
+    }
+    /* mock webpage elements */
+    .mock-nav {
+      display: flex; align-items: center; justify-content: space-between;
+      margin-bottom: 28px; padding-bottom: 14px;
+      border-bottom: 1px solid var(--border);
+    }
+    .mock-logo { display: flex; align-items: center; gap: 8px; }
+    .mock-logo-box { width: 26px; height: 26px; border-radius: 5px; background: var(--border-2); }
+    .mock-logo-text { width: 60px; height: 11px; border-radius: 3px; background: var(--border-2); }
+    .mock-nav-links { display: flex; gap: 12px; }
+    .mock-nav-link { width: 36px; height: 8px; border-radius: 2px; background: var(--border); }
+    .mock-hero-section { margin-bottom: 22px; }
+    .mock-h { height: 14px; border-radius: 3px; background: var(--border-2); margin-bottom: 8px; }
+    .mock-h.w80 { width: 80%; }
+    .mock-h.w60 { width: 60%; }
+    .mock-h.sm { height: 9px; background: var(--border); }
+    .mock-h.sm.w90 { width: 90%; }
+    .mock-h.sm.w70 { width: 70%; }
+    .mock-buttons { display: flex; gap: 10px; margin-top: 14px; }
+    /* The element that gets alt-clicked / highlighted */
+    .mock-btn-hi {
+      padding: 7px 16px; border-radius: 5px;
+      background: var(--accent); font-size: 11px; font-weight: 600; color: #fff;
+      position: relative; cursor: pointer;
+      box-shadow: 0 0 0 2.5px rgba(79,110,247,.5), 0 0 18px rgba(79,110,247,.3);
+      animation: hpulse 2.5s ease-in-out infinite;
+    }
+    @keyframes hpulse {
+      0%,100% { box-shadow: 0 0 0 2.5px rgba(79,110,247,.5), 0 0 18px rgba(79,110,247,.25); }
+      50%      { box-shadow: 0 0 0 4px rgba(79,110,247,.35), 0 0 28px rgba(79,110,247,.4); }
+    }
+    .mock-btn-ghost {
+      padding: 7px 14px; border-radius: 5px;
+      border: 1px solid var(--border-2); font-size: 11px; color: var(--text-3);
+    }
+    /* Highlight ring label */
+    .hi-label {
+      position: absolute; top: -22px; left: 50%; transform: translateX(-50%);
+      background: var(--accent); color: #fff; font-size: 9px; font-weight: 700;
+      padding: 2px 7px; border-radius: 999px; white-space: nowrap;
+      font-family: var(--mono);
+    }
+    /* ── Overlay panel floating over the browser mockup ── */
+    .overlay-float {
+      position: absolute; top: 12px; right: -22px;
+      width: 310px;
+      background: #1e1e1e; border: 1px solid #2e2e2e;
+      border-radius: 10px;
+      box-shadow: 0 20px 56px rgba(0,0,0,.8), 0 2px 8px rgba(0,0,0,.5);
+      font-size: 12px; color: var(--text);
+      font-family: var(--sans);
+      z-index: 10;
+    }
+    .ov-head {
+      display: flex; align-items: flex-start; justify-content: space-between; gap: 8px;
+      padding: 11px 13px 9px;
+      background: #242424; border-bottom: 1px solid #2e2e2e;
+      border-radius: 10px 10px 0 0;
+    }
+    .ov-brand { display: flex; align-items: center; gap: 7px; }
+    .ov-icon {
+      width: 20px; height: 20px; border-radius: 5px; background: var(--accent);
+      display: flex; align-items: center; justify-content: center; flex-shrink: 0;
+    }
+    .ov-icon svg { width: 10px; height: 10px; }
+    .ov-title { font-size: 12px; font-weight: 700; color: var(--text); letter-spacing: -.15px; }
+    .ov-subtitle { font-size: 10px; color: #555; margin-top: 1px; }
+    .ov-badge {
+      display: inline-flex; align-items: center; gap: 4px;
+      padding: 2px 7px; border-radius: 999px; font-size: 10px; font-weight: 500;
+      border: 1px solid rgba(34,197,94,.25); color: var(--green); white-space: nowrap;
+    }
+    .ov-badge-dot {
+      width: 5px; height: 5px; border-radius: 50%;
+      background: var(--green); animation: eblink 2s infinite;
+    }
+    .ov-close {
+      width: 20px; height: 20px; border-radius: 4px;
+      background: transparent; border: 1px solid var(--border);
+      display: flex; align-items: center; justify-content: center;
+      color: #555; font-size: 12px; font-weight: 500; cursor: pointer;
+    }
+    .ov-body {
+      padding: 10px 12px 12px;
+      background: #1a1a1a;
+      border-radius: 0 0 10px 10px;
+      display: flex; flex-direction: column; gap: 8px;
+    }
+    .ov-slabel {
+      font-size: 9px; font-weight: 700; letter-spacing: .08em;
+      color: #555; text-transform: uppercase; margin-bottom: 2px;
+    }
+    .ov-mark {
+      display: grid; grid-template-columns: auto 1fr auto;
+      align-items: center; gap: 6px;
+      padding: 5px 7px; border: 1px solid #2e2e2e;
+      border-radius: 5px; background: #242424;
+    }
+    .ov-id {
+      display: inline-flex; align-items: center; height: 17px;
+      padding: 0 5px; border-radius: 999px;
+      background: rgba(79,110,247,.12); color: #6b84f5;
+      font-size: 10px; font-weight: 700; font-family: var(--mono);
+    }
+    .ov-meta {
+      font-size: 10px; font-family: var(--mono);
+      color: #777; overflow: hidden; text-overflow: ellipsis; white-space: nowrap;
+    }
+    .ov-x { font-size: 11px; color: #444; cursor: pointer; }
+    .ov-ta {
+      background: #242424; border: 1px solid var(--accent);
+      border-radius: 5px; padding: 7px 9px;
+      font-size: 11px; color: var(--text); font-family: var(--sans);
+      line-height: 1.5; min-height: 52px;
+      box-shadow: 0 0 0 2.5px rgba(79,110,247,.1);
+    }
+    .ov-actions {
+      display: flex; align-items: center; justify-content: flex-end;
+      margin-top: 2px;
+    }
+    .ov-submit {
+      padding: 6px 14px; border-radius: 5px;
+      background: var(--accent); color: #fff;
+      font-size: 11px; font-weight: 600; cursor: pointer;
+      border: 1px solid var(--accent);
+    }
+
+    /* ================================================== */
+    /* HOW IT WORKS                                        */
+    /* ================================================== */
+    .flow {
+      padding: 80px 32px;
+      display: flex; flex-direction: column; align-items: center;
+      background: var(--bg-1);
+      border-top: 1px solid var(--border);
+    }
+    .section-eyebrow {
+      font-size: 11px; font-weight: 700; letter-spacing: .1em;
+      text-transform: uppercase; color: var(--accent-l);
+      margin-bottom: 12px; text-align: center;
+    }
+    .section-h2 {
+      font-size: clamp(28px, 3.5vw, 44px);
+      font-weight: 800; letter-spacing: -1.2px; line-height: 1.1;
+      color: var(--text); text-align: center; margin-bottom: 14px;
+    }
+    .section-sub {
+      font-size: 16px; color: var(--text-2); text-align: center;
+      max-width: 520px; margin: 0 auto 56px; line-height: 1.6;
+    }
+    .steps {
+      width: 100%; max-width: 1100px;
+      display: grid; grid-template-columns: repeat(3, 1fr);
+      gap: 0; position: relative;
+    }
+    /* connecting line */
+    .steps::before {
+      content: '';
+      position: absolute; top: 60px; left: calc(16.67% + 16px); right: calc(16.67% + 16px);
+      height: 1px;
+      background: repeating-linear-gradient(90deg, var(--accent) 0, var(--accent) 6px, transparent 6px, transparent 14px);
+      opacity: .35;
+      z-index: 0;
+    }
+    .step {
+      position: relative; z-index: 1;
+      display: flex; flex-direction: column; align-items: center;
+      padding: 0 24px; text-align: center;
+    }
+    .step-num {
+      width: 48px; height: 48px; border-radius: 50%;
+      background: var(--bg-3); border: 1px solid var(--border-2);
+      display: flex; align-items: center; justify-content: center;
+      font-size: 15px; font-weight: 800; color: var(--accent);
+      font-family: var(--mono); margin-bottom: 24px;
+      box-shadow: 0 0 0 6px var(--bg-1);
+    }
+    .step-card {
+      width: 100%; background: var(--bg-3); border: 1px solid var(--border);
+      border-radius: var(--r); overflow: hidden;
+      box-shadow: 0 8px 32px rgba(0,0,0,.4);
+      margin-bottom: 20px;
+    }
+    .step-h { font-size: 15px; font-weight: 700; color: var(--text); margin-bottom: 6px; }
+    .step-p { font-size: 13px; color: var(--text-3); line-height: 1.55; }
+
+    /* ── Step 1 mockup: terminal ── */
+    .term {
+      background: #0d0d0d; padding: 16px;
+      font-family: var(--mono); font-size: 12px; line-height: 1.7;
+    }
+    .term-bar {
+      display: flex; align-items: center; gap: 6px;
+      padding: 8px 12px; background: #1a1a1a;
+      border-bottom: 1px solid var(--border);
+    }
+    .term-bar-dot { width: 10px; height: 10px; border-radius: 50%; }
+    .term-bar-dot.r { background: #ff5f57; }
+    .term-bar-dot.y { background: #febc2e; }
+    .term-bar-dot.g { background: #28c840; }
+    .term-label {
+      flex: 1; text-align: center; font-size: 11px; color: var(--text-4);
+      font-family: var(--sans);
+    }
+    .t-prompt { color: var(--green); }
+    .t-cmd { color: var(--text-2); }
+    .t-pkg { color: var(--accent-l); }
+    .t-ok { color: var(--green); }
+    .t-info { color: var(--text-4); }
+
+    /* ── Step 2 mockup: extension popup ── */
+    .popup-mock {
+      background: var(--bg-3); padding: 0;
+      font-size: 12px; color: var(--text);
+    }
+    .pm-head {
+      display: flex; align-items: center; justify-content: space-between;
+      padding: 10px 12px 8px;
+      background: var(--bg-4); border-bottom: 1px solid var(--border);
+    }
+    .pm-badge {
+      display: inline-flex; align-items: center; gap: 4px;
+      padding: 2px 8px; border-radius: 999px; font-size: 10px; font-weight: 500;
+      border: 1px solid rgba(34,197,94,.25); color: var(--green);
+    }
+    .pm-badge-dot { width: 5px; height: 5px; border-radius: 50%; background: var(--green); animation: eblink 2s infinite; }
+    .pm-body { padding: 10px 12px; display: flex; flex-direction: column; gap: 10px; }
+    .pm-label { font-size: 9px; font-weight: 700; letter-spacing: .08em; color: #555; text-transform: uppercase; }
+    .pm-dropdown {
+      display: flex; align-items: center; justify-content: space-between;
+      padding: 7px 10px; border: 1px solid var(--accent); border-radius: var(--rs);
+      background: var(--bg-4); font-size: 12px; color: var(--text);
+      box-shadow: 0 0 0 2px rgba(79,110,247,.1);
+    }
+    .pm-info {
+      display: flex; align-items: center; gap: 6px;
+      padding: 6px 9px; border-radius: var(--rs); background: var(--bg-2);
+      font-size: 11px; color: var(--text-3);
+    }
+    .pm-info-dot { width: 5px; height: 5px; border-radius: 50%; background: var(--accent-l); flex-shrink: 0; }
+    .pm-how {
+      background: var(--bg-2); border-radius: var(--rs);
+      padding: 8px 10px; font-size: 11px; color: var(--text-2); line-height: 1.5;
+    }
+    .pm-how .kbd {
+      display: inline-block; padding: 1px 5px; border-radius: 3px;
+      background: var(--bg-4); border: 1px solid var(--border-2);
+      font-size: 10px; font-family: var(--mono); color: var(--text);
+    }
+    .pm-footer {
+      display: flex; align-items: center; justify-content: space-between;
+      padding: 6px 12px 8px; font-size: 10px; color: var(--text-4); font-family: var(--mono);
+    }
+
+    /* ── Step 3 mockup: run panel ── */
+    .run-mock { background: var(--bg-3); padding: 12px; display: flex; flex-direction: column; gap: 8px; }
+    .run-stage {
+      display: grid; grid-template-columns: auto 1fr;
+      gap: 8px; align-items: start;
+      padding: 10px; border: 1px solid var(--border);
+      border-radius: var(--rs); background: var(--bg-4);
+    }
+    .run-spinner {
+      width: 15px; height: 15px; border-radius: 50%;
+      border: 2px solid #333; border-top-color: var(--accent);
+      animation: spin .7s linear infinite; margin-top: 1px; flex-shrink: 0;
+    }
+    @keyframes spin { to { transform: rotate(360deg); } }
+    .run-stage.done .run-spinner {
+      border: none; background: var(--green); animation: none;
+      display: flex; align-items: center; justify-content: center;
+    }
+    .run-stage.done .run-spinner::after {
+      content: ''; display: block; width: 7px; height: 4px;
+      border-left: 1.5px solid #fff; border-bottom: 1.5px solid #fff;
+      transform: rotate(-45deg) translateY(-1px);
+    }
+    .run-title { font-size: 12px; font-weight: 700; color: var(--text); }
+    .run-detail { font-size: 11px; color: var(--text-3); margin-top: 2px; }
+    .run-hint {
+      font-size: 10px; color: var(--accent); font-family: var(--mono);
+      opacity: .7; margin-top: 3px;
+    }
+    .run-elapsed { font-size: 10px; color: var(--text-4); font-family: var(--mono); margin-top: 1px; }
+    .run-term-bar {
+      display: flex; align-items: center; justify-content: space-between;
+      gap: 6px;
+    }
+    .run-term-status { font-size: 11px; color: var(--text-3); }
+    .run-term-btn {
+      padding: 4px 9px; border-radius: var(--rs);
+      border: 1px solid var(--border-2); background: transparent;
+      font-size: 10px; color: var(--text-3); cursor: pointer;
+    }
+
+    /* ================================================== */
+    /* FEATURES                                            */
+    /* ================================================== */
+    .features {
+      padding: 80px 32px;
+      display: flex; flex-direction: column; align-items: center;
+      background: var(--bg);
+      border-top: 1px solid var(--border);
+    }
+    .feat-grid {
+      width: 100%; max-width: 1100px;
+      display: grid;
+      grid-template-columns: repeat(3, 1fr);
+      grid-template-rows: auto auto;
+      gap: 16px;
+    }
+    /* Make the first card span 1 row but be wider */
+    .feat-card {
+      background: var(--bg-3); border: 1px solid var(--border);
+      border-radius: var(--r); padding: 24px;
+      transition: border-color .2s, box-shadow .2s, transform .2s;
+      position: relative; overflow: hidden;
+    }
+    .feat-card::before {
+      content: ''; position: absolute; inset: 0;
+      background: radial-gradient(circle 200px at 50% 0%, var(--accent-g), transparent 70%);
+      opacity: 0; transition: opacity .3s;
+    }
+    .feat-card:hover { border-color: var(--border-2); transform: translateY(-3px); box-shadow: 0 16px 40px rgba(0,0,0,.4); }
+    .feat-card:hover::before { opacity: 1; }
+    .feat-card.wide { grid-column: span 2; }
+    .feat-icon {
+      width: 38px; height: 38px; border-radius: 9px;
+      background: var(--accent-g); border: 1px solid rgba(79,110,247,.2);
+      display: flex; align-items: center; justify-content: center;
+      margin-bottom: 16px; font-size: 18px; position: relative; z-index: 1;
+    }
+    .feat-h { font-size: 15px; font-weight: 700; color: var(--text); margin-bottom: 7px; position: relative; z-index: 1; }
+    .feat-p { font-size: 13px; color: var(--text-3); line-height: 1.6; position: relative; z-index: 1; }
+    .feat-tag {
+      display: inline-block; padding: 2px 8px; border-radius: 999px;
+      font-size: 10px; font-weight: 600; font-family: var(--mono);
+      background: rgba(79,110,247,.1); color: var(--accent-l);
+      border: 1px solid rgba(79,110,247,.2); margin-top: 10px;
+      position: relative; z-index: 1;
+    }
+
+    /* ── Locator rank visualization inside wide card ── */
+    .locator-viz {
+      margin-top: 14px; display: flex; flex-direction: column; gap: 4px;
+      position: relative; z-index: 1;
+    }
+    .loc-row {
+      display: flex; align-items: center; gap: 8px;
+      padding: 5px 9px; border-radius: var(--rs);
+      font-size: 11px; font-family: var(--mono);
+    }
+    .loc-row.active { background: rgba(79,110,247,.1); border: 1px solid rgba(79,110,247,.2); color: var(--accent-l); }
+    .loc-row.inactive { background: var(--bg-4); border: 1px solid var(--border); color: var(--text-3); }
+    .loc-rank { font-size: 9px; font-weight: 700; color: var(--text-4); width: 14px; }
+    .loc-label { flex: 1; }
+    .loc-badge {
+      font-size: 9px; padding: 1px 5px; border-radius: 3px;
+      background: rgba(34,197,94,.1); color: var(--green); font-weight: 600;
+    }
+    .loc-badge.fallback { background: rgba(255,255,255,.05); color: var(--text-4); }
+
+    /* ── Agent compat badges ── */
+    .agent-badges { display: flex; flex-wrap: wrap; gap: 7px; margin-top: 14px; position: relative; z-index: 1; }
+    .agent-badge {
+      display: inline-flex; align-items: center; gap: 6px;
+      padding: 4px 10px; border-radius: var(--rs);
+      background: var(--bg-4); border: 1px solid var(--border-2);
+      font-size: 11px; color: var(--text-2); font-weight: 500;
+    }
+    .agent-badge-dot { width: 7px; height: 7px; border-radius: 50%; }
+
+    /* ================================================== */
+    /* SETUP                                               */
+    /* ================================================== */
+    .setup {
+      padding: 80px 32px;
+      display: flex; flex-direction: column; align-items: center;
+      background: var(--bg-1);
+      border-top: 1px solid var(--border);
+    }
+    .setup-grid {
+      width: 100%; max-width: 1000px;
+      display: grid; grid-template-columns: 1fr 1.3fr;
+      gap: 56px; align-items: start;
+    }
+    .setup-steps { display: flex; flex-direction: column; gap: 0; }
+    .setup-step {
+      display: grid; grid-template-columns: 32px 1fr;
+      gap: 16px; padding-bottom: 28px; position: relative;
+    }
+    .setup-step:not(:last-child)::before {
+      content: ''; position: absolute;
+      left: 15px; top: 32px; bottom: 0; width: 1px;
+      background: var(--border);
+    }
+    .setup-num {
+      width: 32px; height: 32px; border-radius: 50%;
+      background: var(--bg-3); border: 1px solid var(--border-2);
+      display: flex; align-items: center; justify-content: center;
+      font-size: 12px; font-weight: 800; color: var(--accent); font-family: var(--mono);
+      position: relative; z-index: 1;
+    }
+    .setup-step-body { padding-top: 6px; }
+    .setup-step-h { font-size: 14px; font-weight: 700; color: var(--text); margin-bottom: 4px; }
+    .setup-step-p { font-size: 13px; color: var(--text-3); line-height: 1.5; margin-bottom: 10px; }
+    .code-block {
+      background: #0d0d0d; border: 1px solid var(--border);
+      border-radius: var(--rs); padding: 10px 14px;
+      font-size: 12.5px; font-family: var(--mono);
+      display: flex; align-items: center; gap: 10px;
+    }
+    .code-block .prompt { color: var(--green); user-select: none; }
+    .code-block .cmd { color: var(--text-2); }
+    .code-block .pkg { color: var(--accent-l); }
+    .setup-ext-row { display: flex; gap: 8px; flex-wrap: wrap; margin-top: 4px; }
+    .ext-btn {
+      display: inline-flex; align-items: center; gap: 7px;
+      padding: 7px 12px; border-radius: var(--rs);
+      background: var(--bg-3); border: 1px solid var(--border-2);
+      font-size: 12px; font-weight: 500; color: var(--text-2); text-decoration: none;
+      transition: background .12s, border-color .12s, color .12s;
+    }
+    .ext-btn:hover { background: var(--bg-4); border-color: var(--border); color: var(--text); }
+    /* setup right: safety diagram */
+    .safety-card {
+      background: var(--bg-3); border: 1px solid var(--border);
+      border-radius: var(--r); padding: 24px;
+      box-shadow: 0 8px 32px rgba(0,0,0,.4);
+    }
+    .safety-h { font-size: 14px; font-weight: 700; color: var(--text); margin-bottom: 4px; }
+    .safety-sub { font-size: 12px; color: var(--text-3); margin-bottom: 20px; line-height: 1.5; }
+    .safety-flow { display: flex; flex-direction: column; gap: 0; }
+    .sf-row {
+      display: flex; align-items: stretch; gap: 12px;
+      padding-bottom: 0;
+    }
+    .sf-connector { display: flex; flex-direction: column; align-items: center; flex-shrink: 0; width: 28px; }
+    .sf-circle {
+      width: 28px; height: 28px; border-radius: 50%; flex-shrink: 0;
+      display: flex; align-items: center; justify-content: center;
+      font-size: 12px;
+    }
+    .sf-circle.blue { background: rgba(79,110,247,.15); border: 1px solid rgba(79,110,247,.3); }
+    .sf-circle.green { background: rgba(34,197,94,.1); border: 1px solid rgba(34,197,94,.25); }
+    .sf-circle.amber { background: rgba(245,158,11,.1); border: 1px solid rgba(245,158,11,.25); }
+    .sf-line { width: 1px; flex: 1; background: var(--border); min-height: 20px; margin: 3px 0; }
+    .sf-body { padding-bottom: 16px; padding-top: 4px; }
+    .sf-title { font-size: 12px; font-weight: 700; color: var(--text); }
+    .sf-desc { font-size: 11px; color: var(--text-3); margin-top: 2px; line-height: 1.5; }
+    .sf-chip {
+      display: inline-block; margin-top: 4px; padding: 2px 7px; border-radius: 3px;
+      font-size: 10px; font-family: var(--mono); font-weight: 600;
+      background: rgba(34,197,94,.08); color: var(--green); border: 1px solid rgba(34,197,94,.2);
+    }
+
+    /* ================================================== */
+    /* CTA                                                 */
+    /* ================================================== */
+    .cta-section {
+      padding: 80px 32px;
+      display: flex; flex-direction: column; align-items: center; justify-content: center;
+      text-align: center; position: relative; overflow: hidden;
+      background: var(--bg);
+      border-top: 1px solid var(--border);
+    }
+    .cta-glow {
+      position: absolute; inset: 0; pointer-events: none;
+      background: radial-gradient(ellipse 60% 50% at 50% 50%, rgba(79,110,247,.08) 0%, transparent 70%);
+    }
+    .cta-h2 {
+      position: relative; z-index: 1;
+      font-size: clamp(30px, 3.8vw, 52px);
+      font-weight: 800; letter-spacing: -1.5px; line-height: 1.08;
+      color: var(--text); margin-bottom: 16px;
+    }
+    .cta-h2 em { font-style: normal; color: var(--accent); }
+    .cta-sub {
+      position: relative; z-index: 1;
+      font-size: 16px; color: var(--text-2); max-width: 420px;
+      margin: 0 auto 36px; line-height: 1.65;
+    }
+    .cta-actions { position: relative; z-index: 1; display: flex; gap: 12px; justify-content: center; flex-wrap: wrap; }
+    .cta-footnote {
+      position: relative; z-index: 1;
+      margin-top: 28px; font-size: 12px; color: var(--text-4);
+      display: flex; align-items: center; gap: 14px; flex-wrap: wrap; justify-content: center;
+    }
+    .cta-footnote a { color: var(--text-4); text-decoration: none; }
+    .cta-footnote a:hover { color: var(--text-2); }
+
+    /* ================================================== */
+    /* FOOTER                                              */
+    /* ================================================== */
+    .footer {
+      padding: 20px 32px; border-top: 1px solid var(--border);
+      display: flex; align-items: center; justify-content: space-between;
+      background: var(--bg-1);
+    }
+    .footer-brand { display: flex; align-items: center; gap: 8px; }
+    .footer-brand .nav-icon { width: 22px; height: 22px; border-radius: 5px; }
+    .footer-brand .nav-icon svg { width: 10px; height: 10px; }
+    .footer-name { font-size: 13px; font-weight: 700; color: var(--text-3); }
+    .footer-right { font-size: 12px; color: var(--text-4); }
+    .footer-right a { color: var(--text-4); text-decoration: none; }
+    .footer-right a:hover { color: var(--text-2); }
+
+    /* ================================================== */
+    /* RESPONSIVE                                          */
+    /* ================================================== */
+    @media (max-width: 880px) {
+      .hero-inner { grid-template-columns: 1fr; gap: 40px; }
+      .overlay-float { display: none; }
+      .steps { grid-template-columns: 1fr; }
+      .steps::before { display: none; }
+      .feat-grid { grid-template-columns: 1fr; }
+      .feat-card.wide { grid-column: span 1; }
+      .setup-grid { grid-template-columns: 1fr; }
+      .browser-chrome { max-width: 100%; }
+      .nav { padding: 0 16px; }
+      .hero { padding: 76px 20px 44px; }
+      .flow, .features, .setup, .cta-section { padding: 60px 20px; }
+    }
+    @media (max-width: 600px) {
+      .hero-h1 { letter-spacing: -1px; }
+      .section-h2 { letter-spacing: -.8px; }
+      .steps { gap: 24px; }
+      .step { padding: 0 8px; }
+    }
+
+    /* ── cursor glow ── */
+    #cursor-glow {
+      pointer-events: none; position: fixed; z-index: 9999;
+      width: 320px; height: 320px;
+      border-radius: 50%;
+      background: radial-gradient(circle, rgba(79,110,247,.06) 0%, transparent 65%);
+      transform: translate(-50%, -50%);
+      transition: left .08s ease, top .08s ease;
+    }
+  </style>
+</head>
+<body>
+
+<div id="cursor-glow"></div>
+
+<!-- ══════════════════ NAV ══════════════════ -->
+<nav class="nav">
+  <a class="nav-brand" href="#">
+    <div class="nav-icon">
+      <svg viewBox="0 0 24 24" fill="none" stroke="white" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round">
+        <path d="M4 4l7.07 17 2.51-7.39L21 11.07z"/>
+      </svg>
+    </div>
+    <span class="nav-name">ClickSmith</span>
+  </a>
+  <div class="nav-right">
+    <span class="nav-ver">v0.1.0</span>
+    <a class="nav-link" href="#how-it-works">How it works</a>
+    <a class="nav-link" href="#features">Features</a>
+    <a class="nav-link" href="https://github.com" target="_blank">GitHub</a>
+    <a class="nav-cta" href="#setup">Get started →</a>
+  </div>
+</nav>
+
+<!-- ══════════════════ HERO ══════════════════ -->
+<section class="hero snap" id="hero">
+  <div class="hero-dots"></div>
+  <div class="hero-glow-l"></div>
+  <div class="hero-glow-r"></div>
+
+  <div class="hero-inner">
+    <div class="hero-copy">
+      <div class="hero-eyebrow fx">
+        <span class="eyebrow-dot"></span>
+        <span>Local-first · No cloud · MIT licensed</span>
+      </div>
+      <h1 class="hero-h1 fx d1">
+        Click any element.<br/>
+        <span class="h-dim">Ship the fix.</span>
+      </h1>
+      <p class="hero-sub fx d2">
+        <strong>Alt+Click</strong> an element on your running app. Describe the change.
+        ClickSmith hands the bundle to Claude Code — in a sandboxed git worktree,
+        so your working tree is never touched until you explicitly hit <strong>Apply</strong>.
+      </p>
+      <div class="hero-actions fx d3">
+        <a href="#setup" class="btn-p">
+          <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"><path d="M4 4l7.07 17 2.51-7.39L21 11.07z"/></svg>
+          Install in 30 seconds
+        </a>
+        <a href="https://github.com" class="btn-s" target="_blank">
+          <svg width="14" height="14" viewBox="0 0 24 24" fill="currentColor"><path d="M12 .297c-6.63 0-12 5.373-12 12 0 5.303 3.438 9.8 8.205 11.385.6.113.82-.258.82-.577 0-.285-.01-1.04-.015-2.04-3.338.724-4.042-1.61-4.042-1.61C4.422 18.07 3.633 17.7 3.633 17.7c-1.087-.744.084-.729.084-.729 1.205.084 1.838 1.236 1.838 1.236 1.07 1.835 2.809 1.305 3.495.998.108-.776.417-1.305.76-1.605-2.665-.3-5.466-1.332-5.466-5.93 0-1.31.465-2.38 1.235-3.22-.135-.303-.54-1.523.105-3.176 0 0 1.005-.322 3.3 1.23.96-.267 1.98-.399 3-.405 1.02.006 2.04.138 3 .405 2.28-1.552 3.285-1.23 3.285-1.23.645 1.653.24 2.873.12 3.176.765.84 1.23 1.91 1.23 3.22 0 4.61-2.805 5.625-5.475 5.92.42.36.81 1.096.81 2.22 0 1.606-.015 2.896-.015 3.286 0 .315.21.69.825.57C20.565 22.092 24 17.592 24 12.297c0-6.627-5.373-12-12-12"/></svg>
+          Star on GitHub
+        </a>
+      </div>
+      <div class="hero-footnote fx d4">
+        <span>
+          <svg width="11" height="11" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><polyline points="20 6 9 17 4 12"/></svg>
+          No cloud
+        </span>
+        <span class="footnote-sep">·</span>
+        <span>
+          <svg width="11" height="11" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><polyline points="20 6 9 17 4 12"/></svg>
+          No telemetry
+        </span>
+        <span class="footnote-sep">·</span>
+        <span>
+          <svg width="11" height="11" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><polyline points="20 6 9 17 4 12"/></svg>
+          Works with any framework
+        </span>
+      </div>
+    </div>
+
+    <!-- Right: browser mockup with overlay -->
+    <div class="hero-visual fx d2">
+      <div class="browser-chrome">
+        <!-- browser chrome bar -->
+        <div class="bc-bar">
+          <div class="bc-dots">
+            <div class="bc-dot r"></div>
+            <div class="bc-dot y"></div>
+            <div class="bc-dot g"></div>
+          </div>
+          <div class="bc-url">localhost:5173</div>
+        </div>
+        <!-- mock webpage body -->
+        <div class="bc-body">
+          <div class="mock-nav">
+            <div class="mock-logo">
+              <div class="mock-logo-box"></div>
+              <div class="mock-logo-text"></div>
+            </div>
+            <div class="mock-nav-links">
+              <div class="mock-nav-link"></div>
+              <div class="mock-nav-link"></div>
+              <div class="mock-nav-link"></div>
+            </div>
+          </div>
+          <div class="mock-hero-section">
+            <div class="mock-h w80"></div>
+            <div class="mock-h w60"></div>
+            <div class="mock-h sm w90" style="margin-top:12px"></div>
+            <div class="mock-h sm w70"></div>
+            <div class="mock-buttons">
+              <div class="mock-btn-hi" style="position:relative;display:inline-block">
+                <span class="hi-label">Alt+Click</span>
+                Get started
+              </div>
+              <div class="mock-btn-ghost">Learn more</div>
+            </div>
+          </div>
+          <!-- placeholder content rows -->
+          <div style="display:flex;gap:10px;margin-top:18px">
+            <div style="flex:1;height:58px;background:var(--border);border-radius:6px;opacity:.4"></div>
+            <div style="flex:1;height:58px;background:var(--border);border-radius:6px;opacity:.25"></div>
+            <div style="flex:1;height:58px;background:var(--border);border-radius:6px;opacity:.15"></div>
+          </div>
+
+          <!-- The ClickSmith overlay floating panel -->
+          <div class="overlay-float">
+            <div class="ov-head">
+              <div>
+                <div class="ov-brand">
+                  <div class="ov-icon">
+                    <svg viewBox="0 0 24 24" fill="none" stroke="white" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round">
+                      <path d="M4 4l7.07 17 2.51-7.39L21 11.07z"/>
+                    </svg>
+                  </div>
+                  <span class="ov-title">ClickSmith</span>
+                </div>
+                <div class="ov-subtitle">Edit the selected UI element</div>
+              </div>
+              <div style="display:flex;align-items:center;gap:6px">
+                <div class="ov-badge">
+                  <span class="ov-badge-dot"></span>
+                  ClickSmith ready · claude
+                </div>
+                <div class="ov-close">×</div>
+              </div>
+            </div>
+            <div class="ov-body">
+              <div class="ov-slabel">Selected target</div>
+              <div class="ov-mark">
+                <span class="ov-id">#1</span>
+                <span class="ov-meta">— | / | dom</span>
+                <span class="ov-x">×</span>
+              </div>
+              <div class="ov-ta">remove the highlighted color</div>
+              <div class="ov-actions">
+                <div class="ov-submit">Submit to agent</div>
+              </div>
+            </div>
+          </div>
+        </div>
+      </div>
+    </div>
+  </div>
+</section>
+
+<!-- ══════════════════ HOW IT WORKS ══════════════════ -->
+<section class="flow snap" id="how-it-works">
+  <div class="section-eyebrow fx">How it works</div>
+  <h2 class="section-h2 fx d1">Three steps to a shipped fix</h2>
+  <p class="section-sub fx d2">From browser click to committed code. Under a minute on a warm machine.</p>
+
+  <div class="steps">
+    <!-- Step 1 -->
+    <div class="step fx d1">
+      <div class="step-num">1</div>
+      <div class="step-card">
+        <div class="term-bar">
+          <div class="bc-dots">
+            <div class="term-bar-dot r"></div>
+            <div class="term-bar-dot y"></div>
+            <div class="term-bar-dot g"></div>
+          </div>
+          <div class="term-label">Terminal</div>
+        </div>
+        <div class="term">
+          <div><span class="t-prompt">$</span> <span class="t-cmd">pnpm dlx </span><span class="t-pkg">create-clicksmith</span></div>
+          <div style="margin-top:6px"><span class="t-info">✔ Detected: Vite + React</span></div>
+          <div><span class="t-info">✔ Wired data-loc injector</span></div>
+          <div><span class="t-info">✔ Wrote agents.config.json</span></div>
+          <div><span class="t-ok">✔ ClickSmith ready.</span></div>
+          <div style="margin-top:8px"><span class="t-prompt">$</span> <span class="t-cmd">pnpm </span><span class="t-pkg">clicksmith daemon</span></div>
+          <div style="margin-top:4px"><span class="t-ok">▶ Daemon listening on :8722</span></div>
+        </div>
+      </div>
+      <div class="step-h">Install once</div>
+      <p class="step-p">The installer detects your bundler, wires up stable locators, and starts the local daemon. No config files to hand-edit.</p>
+    </div>
+
+    <!-- Step 2 -->
+    <div class="step fx d2">
+      <div class="step-num">2</div>
+      <div class="step-card">
+        <div class="popup-mock">
+          <div class="pm-head">
+            <div class="ov-brand">
+              <div class="ov-icon" style="width:18px;height:18px;border-radius:4px">
+                <svg viewBox="0 0 24 24" fill="none" stroke="white" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round" style="width:9px;height:9px">
+                  <path d="M4 4l7.07 17 2.51-7.39L21 11.07z"/>
+                </svg>
+              </div>
+              <span class="ov-title" style="font-size:11px">ClickSmith</span>
+            </div>
+            <div class="pm-badge">
+              <span class="pm-badge-dot"></span>
+              ClickSmith ready
+            </div>
+          </div>
+          <div class="pm-body">
+            <div class="pm-label">Agent</div>
+            <div class="pm-dropdown">
+              <span>Claude Code</span>
+              <svg width="10" height="10" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><polyline points="6 9 12 15 18 9"/></svg>
+            </div>
+            <div class="pm-info">
+              <span class="pm-info-dot"></span>
+              Routes prompts via Claude Code CLI
+            </div>
+            <div>
+              <div class="pm-label" style="margin-bottom:6px">How to use</div>
+              <div class="pm-how">
+                Press <span class="kbd">Alt</span> + <span class="kbd">Click</span> any element, then describe the change in the overlay.
+              </div>
+            </div>
+          </div>
+          <div class="pm-footer">
+            <span>v0.1.0</span>
+            <span>ClickSmith</span>
+          </div>
+        </div>
+      </div>
+      <div class="step-h">Load the extension</div>
+      <p class="step-p">Install the Chrome extension, toggle AI Mode. Alt+Click any element on your running app — ClickSmith captures its tag, text, role, and source location.</p>
+    </div>
+
+    <!-- Step 3 -->
+    <div class="step fx d3">
+      <div class="step-num">3</div>
+      <div class="step-card">
+        <div class="run-mock">
+          <div class="run-stage">
+            <div class="run-spinner"></div>
+            <div>
+              <div class="run-title">Starting agent</div>
+              <div class="run-detail">Sending element context…</div>
+              <div class="run-hint" id="hint-cycling">▸ Reasoning about the change...</div>
+              <div class="run-elapsed">Elapsed 0:04</div>
+            </div>
+          </div>
+          <div class="run-term-bar">
+            <div class="run-term-status">Terminal output available</div>
+            <div style="display:flex;gap:6px">
+              <div class="run-term-btn">Copy logs</div>
+              <div class="run-term-btn">Show terminal</div>
+            </div>
+          </div>
+          <div class="run-stage done" style="margin-top:2px">
+            <div class="run-spinner"></div>
+            <div>
+              <div class="run-title">Changes applied</div>
+              <div class="run-detail">Commit a3f7e9b2 created.</div>
+            </div>
+          </div>
+        </div>
+      </div>
+      <div class="step-h">Agent ships it</div>
+      <p class="step-p">The agent runs in a throwaway git worktree. Review the diff, click Apply — or discard. Your main branch is never touched until you say so.</p>
+    </div>
+  </div>
+</section>
+
+<!-- ══════════════════ FEATURES ══════════════════ -->
+<section class="features snap" id="features">
+  <div class="section-eyebrow fx">Built different</div>
+  <h2 class="section-h2 fx d1">Everything you'd want, nothing you don't</h2>
+  <p class="section-sub fx d2">Precision context. Sandboxed execution. Pluggable agents. All on your machine.</p>
+
+  <div class="feat-grid" style="max-width:1100px;width:100%">
+
+    <!-- Card 1: wide — stable locators -->
+    <div class="feat-card wide fx d1">
+      <div class="feat-icon">🎯</div>
+      <div class="feat-h">Stable locators, not fragile selectors</div>
+      <p class="feat-p">ClickSmith ranks locators in priority order. When your Vite build injects <code style="font-family:var(--mono);font-size:11px;background:var(--bg-4);padding:1px 5px;border-radius:3px;color:var(--accent-l)">data-loc</code>, the agent gets an exact file and line. Otherwise it falls back gracefully — never loses the element.</p>
+      <div class="locator-viz">
+        <div class="loc-row active"><span class="loc-rank">1</span><span class="loc-label">source (data-loc)</span><span class="loc-badge">matched</span></div>
+        <div class="loc-row inactive"><span class="loc-rank">2</span><span class="loc-label">attr (data-testid, aria-label)</span><span class="loc-badge fallback">fallback</span></div>
+        <div class="loc-row inactive"><span class="loc-rank">3</span><span class="loc-label">behavioral (role + text)</span><span class="loc-badge fallback">fallback</span></div>
+        <div class="loc-row inactive"><span class="loc-rank">4</span><span class="loc-label">dom (nth-child path)</span><span class="loc-badge fallback">last resort</span></div>
+      </div>
+    </div>
+
+    <!-- Card 2: safe by default -->
+    <div class="feat-card fx d2">
+      <div class="feat-icon">🛡️</div>
+      <div class="feat-h">Safe by default</div>
+      <p class="feat-p">Every run lives in a throwaway git worktree. Your main branch is untouched. Dirty-tree protection refuses runs when you have uncommitted changes — unless you explicitly opt into inplace mode.</p>
+      <div class="feat-tag">plan + worktree</div>
+    </div>
+
+    <!-- Card 3: any agent -->
+    <div class="feat-card fx d3">
+      <div class="feat-icon">🔌</div>
+      <div class="feat-h">Bring your own agent</div>
+      <p class="feat-p">Adapters are config-driven via <code style="font-family:var(--mono);font-size:11px;background:var(--bg-4);padding:1px 5px;border-radius:3px;color:var(--accent-l)">agents.config.json</code>. Swap agents with a one-line JSON edit. No code changes required.</p>
+      <div class="agent-badges">
+        <div class="agent-badge"><span class="agent-badge-dot" style="background:#8b5cf6"></span>Claude Code</div>
+        <div class="agent-badge"><span class="agent-badge-dot" style="background:#3b82f6"></span>Cursor</div>
+        <div class="agent-badge"><span class="agent-badge-dot" style="background:#10b981"></span>Codex</div>
+        <div class="agent-badge"><span class="agent-badge-dot" style="background:var(--text-4)"></span>Custom</div>
+      </div>
+    </div>
+
+    <!-- Card 4: MCP -->
+    <div class="feat-card fx d1">
+      <div class="feat-icon">🧠</div>
+      <div class="feat-h">MCP-native context</div>
+      <p class="feat-p">The daemon exposes a read-only MCP stdio server. Any MCP-capable agent can call <code style="font-family:var(--mono);font-size:11px;background:var(--bg-4);padding:1px 5px;border-radius:3px;color:var(--accent-l)">get_session</code> and <code style="font-family:var(--mono);font-size:11px;background:var(--bg-4);padding:1px 5px;border-radius:3px;color:var(--accent-l)">get_element_by_id</code> directly — no prompt stuffing.</p>
+      <div class="feat-tag">MCP stdio</div>
+    </div>
+
+    <!-- Card 5: visual precision -->
+    <div class="feat-card fx d2">
+      <div class="feat-icon">👁️</div>
+      <div class="feat-h">Point, don't describe</div>
+      <p class="feat-p">Multi-element selection. Marks tray shows <code style="font-family:var(--mono);font-size:11px;background:var(--bg-4);padding:1px 5px;border-radius:3px;color:var(--accent-l)">#1</code>, <code style="font-family:var(--mono);font-size:11px;background:var(--bg-4);padding:1px 5px;border-radius:3px;color:var(--accent-l)">#2</code>…. The agent sees tag, text, role, nearby labels — not a vague English description.</p>
+    </div>
+
+    <!-- Card 6: local first -->
+    <div class="feat-card fx d3">
+      <div class="feat-icon">🏠</div>
+      <div class="feat-h">100% local-first</div>
+      <p class="feat-p">No cloud services. No telemetry. Every bundle, screenshot, log, MCP call, and agent command stays on your machine. The daemon only listens on <code style="font-family:var(--mono);font-size:11px;background:var(--bg-4);padding:1px 5px;border-radius:3px;color:var(--accent-l)">127.0.0.1</code>.</p>
+      <div class="feat-tag">zero outbound</div>
+    </div>
+
+  </div>
+</section>
+
+<!-- ══════════════════ SETUP ══════════════════ -->
+<section class="setup snap" id="setup">
+  <div class="section-eyebrow fx">Get started</div>
+  <h2 class="section-h2 fx d1">Up and running in 4 steps</h2>
+  <p class="section-sub fx d2" style="margin-bottom:48px">Node ≥ 20, git ≥ 2.20, Chrome or Firefox. That's all.</p>
+
+  <div class="setup-grid">
+    <div class="setup-steps">
+
+      <div class="setup-step fx d1">
+        <div class="setup-num">1</div>
+        <div class="setup-step-body">
+          <div class="setup-step-h">Run the installer</div>
+          <p class="setup-step-p">Auto-detects Vite, Webpack, Rollup, esbuild, or Rspack. Wires up the unplugin for stable <code style="font-family:var(--mono);font-size:11px;background:var(--bg-4);padding:1px 4px;border-radius:3px;color:var(--accent-l)">data-loc</code> injection.</p>
+          <div class="code-block">
+            <span class="prompt">$</span>
+            <span class="cmd">pnpm dlx </span>
+            <span class="pkg">create-clicksmith</span>
+          </div>
+        </div>
+      </div>
+
+      <div class="setup-step fx d2">
+        <div class="setup-num">2</div>
+        <div class="setup-step-body">
+          <div class="setup-step-h">Start the daemon</div>
+          <p class="setup-step-p">Fastify HTTP + WebSocket + MCP stdio. Runs at <code style="font-family:var(--mono);font-size:11px;background:var(--bg-4);padding:1px 4px;border-radius:3px;color:var(--accent-l)">localhost:8722</code>. Keep it running in a terminal tab.</p>
+          <div class="code-block">
+            <span class="prompt">$</span>
+            <span class="cmd">pnpm </span>
+            <span class="pkg">clicksmith daemon</span>
+          </div>
+        </div>
+      </div>
+
+      <div class="setup-step fx d3">
+        <div class="setup-num">3</div>
+        <div class="setup-step-body">
+          <div class="setup-step-h">Install the browser extension</div>
+          <p class="setup-step-p">Available for Chrome and Firefox. Talks only to <code style="font-family:var(--mono);font-size:11px;background:var(--bg-4);padding:1px 4px;border-radius:3px;color:var(--accent-l)">127.0.0.1</code> — never phones home.</p>
+          <div class="setup-ext-row">
+            <a href="#" class="ext-btn">
+              <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><rect x="3" y="3" width="18" height="18" rx="2"/><path d="M3 9h18M9 21V9"/></svg>
+              Chrome Web Store
+            </a>
+            <a href="#" class="ext-btn">
+              <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><path d="M12 2C6.48 2 2 6.48 2 12s4.48 10 10 10 10-4.48 10-10S17.52 2 12 2z"/><path d="M12 8v8M8 12h8"/></svg>
+              Firefox Add-ons
+            </a>
+          </div>
+        </div>
+      </div>
+
+      <div class="setup-step fx d4">
+        <div class="setup-num">4</div>
+        <div class="setup-step-body">
+          <div class="setup-step-h">Alt+Click anything</div>
+          <p class="setup-step-p">Open your dev server in the browser. Hold <kbd style="font-family:var(--mono);font-size:11px;background:var(--bg-4);padding:1px 6px;border-radius:3px;border:1px solid var(--border-2);color:var(--text)">Alt</kbd> and click any element. The overlay appears. Describe your change. Hit Submit.</p>
+        </div>
+      </div>
+
+    </div>
+
+    <!-- Safety flow diagram -->
+    <div class="safety-card fx d2">
+      <div class="safety-h">What happens under the hood</div>
+      <div class="safety-sub">Every submit goes through the same safe pipeline. Your main branch is the last thing touched.</div>
+      <div class="safety-flow">
+        <div class="sf-row">
+          <div class="sf-connector">
+            <div class="sf-circle blue">📸</div>
+            <div class="sf-line"></div>
+          </div>
+          <div class="sf-body">
+            <div class="sf-title">Element captured</div>
+            <div class="sf-desc">Tag, text, role, stable locator, and a screenshot thumbnail bundled into a session.</div>
+          </div>
+        </div>
+        <div class="sf-row">
+          <div class="sf-connector">
+            <div class="sf-circle amber">🌿</div>
+            <div class="sf-line"></div>
+          </div>
+          <div class="sf-body">
+            <div class="sf-title">Worktree created</div>
+            <div class="sf-desc">Daemon spawns a throwaway <code style="font-family:var(--mono);font-size:10px">git worktree</code> at <code style="font-family:var(--mono);font-size:10px">.clicksmith/worktrees/&lt;runId&gt;</code>. Your main tree is frozen.</div>
+            <div class="sf-chip">main tree untouched</div>
+          </div>
+        </div>
+        <div class="sf-row">
+          <div class="sf-connector">
+            <div class="sf-circle blue">🤖</div>
+            <div class="sf-line"></div>
+          </div>
+          <div class="sf-body">
+            <div class="sf-title">Agent runs in sandbox</div>
+            <div class="sf-desc">Claude Code (or your agent) reads the bundle via MCP, edits the sandboxed copy, streams logs back to the overlay.</div>
+          </div>
+        </div>
+        <div class="sf-row">
+          <div class="sf-connector">
+            <div class="sf-circle blue">🔍</div>
+            <div class="sf-line"></div>
+          </div>
+          <div class="sf-body">
+            <div class="sf-title">You review the diff</div>
+            <div class="sf-desc">Inspect the plan and patch in your editor. The worktree sits there untouched until you decide.</div>
+          </div>
+        </div>
+        <div class="sf-row">
+          <div class="sf-connector">
+            <div class="sf-circle green">✅</div>
+          </div>
+          <div class="sf-body" style="padding-bottom:0">
+            <div class="sf-title">Apply (or discard)</div>
+            <div class="sf-desc">Click Apply → 3-way merge back to main, commit created, worktree cleaned up. Or discard with no trace.</div>
+            <div class="sf-chip">revert metadata recorded</div>
+          </div>
+        </div>
+      </div>
+    </div>
+  </div>
+</section>
+
+<!-- ══════════════════ CTA ══════════════════ -->
+<section class="cta-section snap" id="cta">
+  <div class="cta-glow"></div>
+  <div class="section-eyebrow fx" style="position:relative;z-index:1">Ready to ship?</div>
+  <h2 class="cta-h2 fx d1">
+    Stop describing what you mean.<br/>
+    <em>Just click it.</em>
+  </h2>
+  <p class="cta-sub fx d2">
+    Local-first. Zero cloud. Works with Claude Code, Cursor, and Codex.
+    Your worktree is sacred — we promise.
+  </p>
+  <div class="cta-actions fx d3">
+    <a href="#setup" class="btn-p" style="font-size:15px;padding:14px 28px">
+      <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"><path d="M4 4l7.07 17 2.51-7.39L21 11.07z"/></svg>
+      Install ClickSmith
+    </a>
+    <a href="https://github.com" class="btn-s" target="_blank" style="font-size:15px;padding:13px 26px">
+      <svg width="15" height="15" viewBox="0 0 24 24" fill="currentColor"><path d="M12 .297c-6.63 0-12 5.373-12 12 0 5.303 3.438 9.8 8.205 11.385.6.113.82-.258.82-.577 0-.285-.01-1.04-.015-2.04-3.338.724-4.042-1.61-4.042-1.61C4.422 18.07 3.633 17.7 3.633 17.7c-1.087-.744.084-.729.084-.729 1.205.084 1.838 1.236 1.838 1.236 1.07 1.835 2.809 1.305 3.495.998.108-.776.417-1.305.76-1.605-2.665-.3-5.466-1.332-5.466-5.93 0-1.31.465-2.38 1.235-3.22-.135-.303-.54-1.523.105-3.176 0 0 1.005-.322 3.3 1.23.96-.267 1.98-.399 3-.405 1.02.006 2.04.138 3 .405 2.28-1.552 3.285-1.23 3.285-1.23.645 1.653.24 2.873.12 3.176.765.84 1.23 1.91 1.23 3.22 0 4.61-2.805 5.625-5.475 5.92.42.36.81 1.096.81 2.22 0 1.606-.015 2.896-.015 3.286 0 .315.21.69.825.57C20.565 22.092 24 17.592 24 12.297c0-6.627-5.373-12-12-12"/></svg>
+      View on GitHub
+    </a>
+  </div>
+  <div class="cta-footnote fx d4">
+    <span>MIT License</span>
+    <span>·</span>
+    <span>Node ≥ 20 · git ≥ 2.20</span>
+    <span>·</span>
+    <span>Chrome · Firefox</span>
+    <span>·</span>
+    <a href="#">Docs</a>
+    <span>·</span>
+    <a href="#">Architecture</a>
+  </div>
+</section>
+
+<!-- ══════════════════ FOOTER ══════════════════ -->
+<footer class="footer">
+  <div class="footer-brand">
+    <div class="nav-icon" style="width:22px;height:22px;border-radius:5px">
+      <svg width="10" height="10" viewBox="0 0 24 24" fill="none" stroke="white" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round">
+        <path d="M4 4l7.07 17 2.51-7.39L21 11.07z"/>
+      </svg>
+    </div>
+    <span class="footer-name">ClickSmith</span>
+  </div>
+  <div class="footer-right">
+    MIT © ClickSmith contributors &nbsp;·&nbsp;
+    <a href="#">GitHub</a> &nbsp;·&nbsp;
+    <a href="#">Docs</a>
+  </div>
+</footer>
+
+<script>
+  // ── cursor glow ──────────────────────────────────────
+  const glow = document.getElementById('cursor-glow');
+  document.addEventListener('mousemove', e => {
+    glow.style.left = e.clientX + 'px';
+    glow.style.top  = e.clientY + 'px';
+  });
+
+  // ── scroll reveal ─────────────────────────────────────
+  const obs = new IntersectionObserver(
+    entries => entries.forEach(e => {
+      if (e.isIntersecting) { e.target.classList.add('in'); obs.unobserve(e.target); }
+    }),
+    { threshold: 0.12, rootMargin: '0px 0px -40px 0px' }
+  );
+  document.querySelectorAll('.fx').forEach(el => obs.observe(el));
+
+  // ── hint cycling in step 3 ───────────────────────────
+  const hints = [
+    '▸ Reading element context...',
+    '▸ Analyzing DOM structure...',
+    '▸ Reasoning about the change...',
+    '▸ Building a plan...',
+    '▸ Mapping component tree...',
+    '▸ Generating prompt...',
+    '▸ Connecting to agent...',
+  ];
+  let hi = 0;
+  const hintEl = document.getElementById('hint-cycling');
+  if (hintEl) {
+    setInterval(() => {
+      hintEl.style.opacity = 0;
+      setTimeout(() => {
+        hi = (hi + 1) % hints.length;
+        hintEl.textContent = hints[hi];
+        hintEl.style.opacity = 0.7;
+        hintEl.style.transition = 'opacity .35s';
+      }, 350);
+    }, 2200);
+  }
+
+  // ── elapsed counter in step 3 ────────────────────────
+  const elapsedEl = document.querySelector('.run-elapsed');
+  if (elapsedEl) {
+    let secs = 4;
+    setInterval(() => {
+      secs++;
+      const m = Math.floor(secs / 60);
+      const s = String(secs % 60).padStart(2, '0');
+      elapsedEl.textContent = `Elapsed ${m}:${s}`;
+    }, 1000);
+  }
+
+  // ── nav active link highlight ─────────────────────────
+  const sections = document.querySelectorAll('section[id]');
+  const navLinks = document.querySelectorAll('.nav-link');
+  const secObs = new IntersectionObserver(
+    entries => {
+      entries.forEach(e => {
+        if (e.isIntersecting) {
+          navLinks.forEach(l => l.style.color = '');
+          const active = document.querySelector(`.nav-link[href="#${e.target.id}"]`);
+          if (active) active.style.color = '#ebebeb';
+        }
+      });
+    },
+    { threshold: 0.5 }
+  );
+  sections.forEach(s => secObs.observe(s));
+</script>
+</body>
+</html>
