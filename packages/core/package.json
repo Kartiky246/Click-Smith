@@ -1,6 +1,6 @@
 {
   "name": "@clicksmith/core",
-  "version": "0.1.0",
+  "version": "0.1.1",
   "description": "Shared schemas, types, locator ranking, and session/bundle logic for ClickSmith. Platform-neutral (zod only).",
   "license": "MIT",
   "type": "module",
