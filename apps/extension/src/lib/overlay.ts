@@ -676,6 +676,8 @@ export function mountOverlay(handlers: OverlayHandlers): Overlay {
       stopElapsedTimer();
       runStartedAt = 0;
       currentRunId = null;
+      textarea.value = '';
+      refreshSubmit();
     }
     syncVisibility();
   }
