@@ -41,10 +41,11 @@ export function applyManagedBlock(existing: string | undefined, body: string): s
 }
 
 function cursorMdc(body: string): string {
-  // Cursor "Project Rules" use MDC frontmatter; alwaysApply keeps it active.
+  // alwaysApply: false — the agentPrompt carries all context; auto-loading this
+  // file as system context makes agents explore instead of act immediately.
   return `---
 description: ClickSmith — how to handle captured UI change requests
-alwaysApply: true
+alwaysApply: false
 ---
 
 ${body.trim()}
